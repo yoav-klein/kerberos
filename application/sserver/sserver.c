@@ -38,8 +38,6 @@
  * client (this will be correct if this server is started by inetd).
  */
 
-#include "k5-int.h"
-#include "com_err.h"
 
 #include <stdio.h>
 #include <string.h>
