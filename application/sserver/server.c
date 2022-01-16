@@ -55,6 +55,36 @@ void bind_socket(int sockfd, int is_specific_addr, char* addr, int port)
 }
 
 
+
+int receive_connection(int sockfd)
+{
+	struct sockaddr_in cliaddr;
+	socklen_t client_addr_size;	
+		
+	memset(&cliaddr, 0, sizeof(cliaddr));
+	
+	if(-1 == listen(sockfd, LISTEN_BACKLOG))
+	{
+		perror("listen");
+		exit(1);
+	}
+	
+	client_addr_size = sizeof(cliaddr);
+	printf("Waiting for connection...\n");
+	cfd = accept(sockfd, (struct sockaddr*)&cliaddr, &client_addr_size);
+	if(-1 == cfd)
+	{
+		perror("accept");
+		exit(1);
+	}
+	
+	printf("Received connection from: %s:%d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
+	printf("New socket: %d\n", cfd);
+	
+	return cfd;
+}
+
+
 static void usage(const char *name)
 {
 	printf("Usage: %s [-p port] [-s service] [-S keytab] [-h host]\n", name);
