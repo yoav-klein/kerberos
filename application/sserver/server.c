@@ -81,7 +81,6 @@ int receive_connection(int sockfd)
 	}
 	
 	printf("Received connection from: %s:%d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
-	printf("New socket: %d\n", cfd);
 	
 	return cfd;
 }
@@ -125,22 +124,32 @@ void parse_args(int argc, char **argv, int *port, char **service, char **keytab,
 
 int main(int argc, char **argv)
 {
+	int sock = 0, cfd = 0;
 	int port = 0;
 	char *service = NULL;
-	char *keytab = NULL;
+	char *keytab_str = NULL;
 	char *host = NULL;
 	char *service_canonicalized;
 	
 	krb5_context context;
 	krb5_error_code retval;
 	krb5_principal server;
+	krb5_auth_context auth_context = NULL;
+	krb5_keytab keytab = NULL;
+	krb5_ticket *ticket;
 	
-	parse_args(argc, argv, &port, &service, &keytab, &host);
+	parse_args(argc, argv, &port, &service, &keytab_str, &host);
 	
 	printf("port: %d\n", port);
 	printf("service: %s\n", service);
 	printf("host: %s\n", host);
-	printf("keytab: %s\n", keytab);
+	printf("keytab: %s\n", keytab_str);
+	
+	if(!port)
+	{
+		usage(*argv);
+		exit(1);
+	}
 	
 	/* init context */
 	retval = krb5_init_context(&context);
@@ -157,9 +166,28 @@ int main(int argc, char **argv)
 		perror("krb5_sname_to_principal");
 		exit(1);
 	}
-	/*retval = krb5_unparse_name(context, server, &service_canonicalized);
+	
+	/*
+	retval = krb5_unparse_name(context, server, &service_canonicalized);
 	printf("%s\n", service_canonicalized);
 	*/
+	sock = create_socket();
+	bind_socket(sock, 0, NULL, port);
+	cfd = receive_connection(sock);
+	
+	/* recvauth */
+	retval = krb5_recvauth(context, &auth_context, (krb5_pointer)&cfd, 
+			"version5", server, 
+			0 /* no flags*/, 
+			keytab /* NULL is default keytab*/,
+			&ticket);
+
+	if(retval)
+	{
+		printf("recvauth failed !\n");
+		error_message(retval);
+		exit(1);
+	}
 	return 0;
 }
 
