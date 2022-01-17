@@ -1,0 +1,15 @@
+version: "3.9"
+services:
+    kdc:
+        build: kdc
+        hostname: kdc.myexample.com
+        networks:
+        - myexample.com
+    server:
+        build: server
+        hostname: server.myexample.com
+        networks:
+        - myexample.com
+networks:
+  myexample.com:
+    external: true

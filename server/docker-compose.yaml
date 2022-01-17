@@ -1,7 +1,0 @@
-version: "3.9"
-services:
-    kdc:
-        build: .
-        hostname: server.myexample.com
-    
-        

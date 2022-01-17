@@ -12,18 +12,12 @@
 #
 ###############################################
 
-FROM ubuntu:20.04
+FROM ubuntu-minimum:0.1
 
 RUN apt-get update && apt-get install -y krb5-kdc krb5-admin-server
 
 COPY ./krb5.conf /etc/krb5.conf
 COPY ./kadm5.acl etc/krb5kdc/kadm5.acl
-
-RUN printf "\
-[logging]\n \
-	default = FILE:/var/log/kerberos/krb5.log\n \  
-	admin_server = FILE:/var/log/kerberos/kadmin.log\n \
-	kdc = FILE:/var/log/kerberos/krb5lib.log\n" | tee -a /etc/krb5kdc/kdc.conf
 
 RUN mkdir -p /var/log/kerberos
 RUN touch /var/log/kerberos/krb5.log
@@ -31,6 +25,7 @@ RUN touch /var/log/kerberos/kadmin.log
 RUN touch /var/log/kerberos/krb5lib.log
 
 RUN kdb5_util create -r "MYEXAMPLE.COM" -P yoavklein3 -s
+
 RUN kadmin.local add_principal -pw "admin" admin/admin
 
 COPY ./start.sh /start.sh

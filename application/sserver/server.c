@@ -9,6 +9,7 @@
 #include <string.h> /* memset */
 #include <krb5.h> /* krb5_init_context */
 
+#define LISTEN_BACKLOG (50)
 
 int create_socket()
 {
@@ -58,6 +59,7 @@ void bind_socket(int sockfd, int is_specific_addr, char* addr, int port)
 
 int receive_connection(int sockfd)
 {
+	int cfd = 0;
 	struct sockaddr_in cliaddr;
 	socklen_t client_addr_size;	
 		
@@ -155,9 +157,9 @@ int main(int argc, char **argv)
 		perror("krb5_sname_to_principal");
 		exit(1);
 	}
-	retval = krb5_unparse_name(context, server, &service_canonicalized);
+	/*retval = krb5_unparse_name(context, server, &service_canonicalized);
 	printf("%s\n", service_canonicalized);
-	
+	*/
 	return 0;
 }
 
