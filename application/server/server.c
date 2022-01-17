@@ -129,6 +129,7 @@ int main(int argc, char **argv)
 	char *service = NULL;
 	char *keytab_str = NULL;
 	char *host = NULL;
+	char *client_name = NULL;
 	char *service_canonicalized;
 	
 	krb5_context context;
@@ -153,6 +154,16 @@ int main(int argc, char **argv)
 	
 	/* init context */
 	retval = krb5_init_context(&context);
+	
+	if(keytab_str)
+	{
+		retval = krb5_kt_resolve(context, keytab_str, &keytab);
+		if(retval)
+		{
+			error_message(retval);
+		}
+	}
+	
 	if(retval)
 	{
 		perror("krb5_init_context");
@@ -188,6 +199,22 @@ int main(int argc, char **argv)
 		error_message(retval);
 		exit(1);
 	}
+	
+	printf("AFTER RECVAUTH\n");
+	
+	retval = krb5_unparse_name(context, ticket->enc_part2->client, &client_name);
+	if(retval)
+	{
+		error_message(retval);
+	}
+	
+	/*  freeing structures */
+	krb5_free_ticket(context, ticket);
+	krb5_free_principal(context, server);
+	krb5_kt_close(context, keytab);
+	krb5_auth_con_free(context, auth_context);
+	krb5_free_context(context);
+	
 	return 0;
 }
 

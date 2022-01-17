@@ -7,6 +7,8 @@ SHELL=/bin/bash
 network:
 	@./create-network.sh
 
-
-build: network
+pre-build: network
+	@cd images/base; docker build -t ubuntu-minimum:0.1 .
+	
+build: pre-build
 	@cd images; docker-compose up -d --build
