@@ -7,3 +7,5 @@ RUN apt-get install -y dnsutils
 RUN apt-get install -y curl
 RUN apt-get install -y iputils-ping
 RUN apt-get install -y tcpdump
+RUN apt-get install -y netcat
+RUN apt-get install -y vim

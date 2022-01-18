@@ -71,6 +71,7 @@ int main(int argc, char **argv)
     int status = 0;
     int sock = 0;
     
+    krb5_creds *creds;
 	krb5_error_code retval;
 	krb5_context context;
 	krb5_principal server, client;
@@ -78,6 +79,7 @@ int main(int argc, char **argv)
 	krb5_auth_context auth_context;
 	krb5_error *err_ret;
     krb5_ap_rep_enc_part *rep_ret;
+    krb5_data data;
 	
 	struct addrinfo aihints, *res_addresses, *runner;
 	char *host = NULL;
@@ -151,22 +153,32 @@ int main(int argc, char **argv)
 	    com_err(argv[0], retval, "while getting default ccache");
 	    exit(1);
 	}
-	
+	printf("After krb5_cc_default\n");	
+		
 	/* get the default principal of a credential cache */
 	retval = krb5_cc_get_principal(context, ccdef, &client);
 	if(retval)
 	{
-	    com_err(argv[0], retval, "while getting client principal name");
+	    com_err("krb5_cc_get_principal", retval, "while getting client principal name");
 	    exit(1);
 	}
+	printf("After krb5_cc_get_principal\n");
 	
-	/* TODO krb5_data */
+	data.data = "Kukuriku";
+	data.length = strlen("kukuriku");
+	
+	/*
+	krb5_sendauth:
+		- retrieves credentials for client to server. First trying from 
+		  credentials cache, then sends a TGS_REQ to the Ticket Granting Server
+	
+	*/
 	retval = krb5_sendauth(context, &auth_context, (krb5_pointer)&sock, 
-	                        "version5", client, server, 0, (krb5_data*)"kuku",
-	                        0, /* no creds, use credential cache */ ccdef, &err_ret, &rep_ret, NULL);
+	                        "version5", client, server, AP_OPTS_MUTUAL_REQUIRED, &data,
+	                        0, /* no creds, use credential cache */ ccdef, &err_ret, &rep_ret, &creds);
 	
 	
-	printf("sent auth\n");
+	printf("After sentauth\n");
 	if(retval)
     {
         com_err(argv[0], retval, "after sentauth");
