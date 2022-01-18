@@ -1,12 +1,96 @@
+#define _POSIX_C_SOURCE 200112
 
-
+#include <stdio.h> /* pritf */
 #include <krb5.h> /* krb5_init_context */
 #include <stdlib.h> /* exit */
+#include <netdb.h>  
+#include <sys/types.h> /* struct addrinfo */
+#include <string.h> /* memset */
+#include <unistd.h> /* getopt */
+#include <sys/socket.h> /* socket */
+#include <netinet/in.h> /* inet_ntoa */
+#include <arpa/inet.h> /*  inet_ntoa */
 
-int main()
+
+
+
+static void usage(const char *name)
 {
+    printf("Usage: %s -h <host> -p <port> -s <service>\n", name);
+
+}
+
+void parse_args(int argc, char **argv, char **host, char **port, char **service)
+{
+	extern int opterr, optind;
+	extern char *optarg;
+	char ch = 0;
+	
+	while((ch = getopt(argc, argv, "p:s:S:h:")) != -1)
+	{
+		switch(ch)
+		{
+			case 'p':
+				*port = optarg;
+				break;
+			case 's':
+				*service = optarg;
+				break;
+			case 'h':
+				*host = optarg;
+				break;
+			default:
+				usage(*argv);
+				exit(1);
+		}
+	}	
+
+}
+
+void print_found_address(struct addrinfo *entry)
+{
+	struct sockaddr_in *inet_addr = { 0 };
+	inet_addr = (struct sockaddr_in*)entry->ai_addr;
+	printf("IP: %s, Port: %d, Family: %d, Type: %d\n", inet_ntoa(inet_addr->sin_addr), 
+	    ntohs(inet_addr->sin_port), entry->ai_family, entry->ai_socktype);
+}
+
+void printf_found_addresses(struct addrinfo *result)
+{
+    int count = 0;
+    struct addrinfo *runner = result;
+    for(runner = result; runner != NULL; runner = runner->ai_next)
+	{
+    	printf("Found address %d:\n", count++);
+	    print_found_address(runner);	
+	}
+}
+
+int main(int argc, char **argv)
+{
+    int status = 0;
+    int sock = 0;
+    
 	krb5_error_code retval;
 	krb5_context context;
+	krb5_principal server, client;
+	krb5_ccache ccdef;
+	krb5_auth_context auth_context;
+	krb5_error *err_ret;
+    krb5_ap_rep_enc_part *rep_ret;
+	
+	struct addrinfo aihints, *res_addresses, *runner;
+	char *host = NULL;
+	char *service = NULL;
+	char *port = NULL;
+	char *service_canonicalized = NULL;
+	
+	parse_args(argc, argv, &host, &port, &service);
+	if(argc < 2)
+	{
+	    usage(argv[0]);
+	    exit(1);
+	}
 	
 	retval = krb5_init_context(&context);
 	if(retval)
@@ -14,6 +98,88 @@ int main()
 		error_message(retval);
 		exit(1);
 	}
+	
+    memset(&aihints, 0, sizeof(aihints));
+    aihints.ai_family = AF_INET;
+    aihints.ai_socktype = SOCK_STREAM;
+	
+	status = getaddrinfo(host, port, &aihints, &res_addresses);
+	if(status)
+	{
+	    printf("%s\n", gai_strerror(status));
+	    exit(1);
+	}
+	if(status)
+	{
+	    perror("error looking up host");
+	    exit(1);
+	}
+	printf_found_addresses(res_addresses);
+	
+	retval = krb5_sname_to_principal(context, host, service, KRB5_NT_SRV_HST, &server);
+	
+	/* print canonicalized */
+	retval = krb5_unparse_name(context, server, &service_canonicalized);
+	printf("canonicalized: %s\n", service_canonicalized);
+		
+	for(runner = res_addresses; runner != NULL; runner = runner->ai_next)
+	{
+	    printf("Trying to connect to:\n");
+	    print_found_address(runner);
+	    sock = socket(runner->ai_family, runner->ai_socktype, 0);
+	    if(-1 == sock)
+	    {
+	        perror("socket failed");
+	        exit(1);
+	    }
+	    if(connect(sock, runner->ai_addr, runner->ai_addrlen))
+	    {   
+	        perror("connect failed, trying the next\n");
+	        continue;
+	    }
+	    else
+	    {
+	        printf("connected !\n");
+	        break;
+	    }
+	}
+	
+	/* resolve the default credential cache name */
+	retval = krb5_cc_default(context, &ccdef);
+	if(retval)
+	{
+	    com_err(argv[0], retval, "while getting default ccache");
+	    exit(1);
+	}
+	
+	/* get the default principal of a credential cache */
+	retval = krb5_cc_get_principal(context, ccdef, &client);
+	if(retval)
+	{
+	    com_err(argv[0], retval, "while getting client principal name");
+	    exit(1);
+	}
+	
+	/* TODO krb5_data */
+	retval = krb5_sendauth(context, &auth_context, (krb5_pointer)&sock, 
+	                        "version5", client, server, 0, (krb5_data*)"kuku",
+	                        0, /* no creds, use credential cache */ ccdef, &err_ret, &rep_ret, NULL);
+	
+	
+	printf("sent auth\n");
+	if(retval)
+    {
+        com_err(argv[0], retval, "after sentauth");
+        error_message(retval);
+        exit(1);
+    }
+
+	krb5_cc_close(context, ccdef);
+	krb5_auth_con_free(context, auth_context);
+	krb5_free_principal(context, client);
+	krb5_free_principal(context, server);
+	freeaddrinfo(res_addresses);
+	krb5_free_context(context);
 	
 	return 0;
 }

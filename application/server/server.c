@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 2
+#define _POSIX_C_SOURCE 200112
 
 #include <unistd.h> /* getopt */
 #include <stdio.h> /* printf */
@@ -171,17 +171,17 @@ int main(int argc, char **argv)
 	}	
 	
 	/* takes a service name and host name as strings, and canonicalize into a principal name */
-	retval = krb5_sname_to_principal(context, host, service, KRB5_NT_SRV_HST, &server);
+	retval = krb5_sname_to_principal(context, NULL, service, KRB5_NT_SRV_HST, &server);
 	if(retval)
 	{
 		perror("krb5_sname_to_principal");
 		exit(1);
 	}
 	
-	/*
+	
 	retval = krb5_unparse_name(context, server, &service_canonicalized);
-	printf("%s\n", service_canonicalized);
-	*/
+	printf("canonicalized: %s\n", service_canonicalized);
+	
 	sock = create_socket();
 	bind_socket(sock, 0, NULL, port);
 	cfd = receive_connection(sock);
@@ -195,8 +195,7 @@ int main(int argc, char **argv)
 
 	if(retval)
 	{
-		printf("recvauth failed !\n");
-		error_message(retval);
+		com_err(argv[0], retval, "after recvauth");
 		exit(1);
 	}
 	
