@@ -71,12 +71,11 @@ int main(int argc, char **argv)
     int status = 0;
     int sock = 0;
     
-    krb5_creds *creds;
-	krb5_error_code retval;
+    krb5_error_code retval;
 	krb5_context context;
 	krb5_principal server, client;
 	krb5_ccache ccdef;
-	krb5_auth_context auth_context;
+	krb5_auth_context auth_context = 0;
 	krb5_error *err_ret;
     krb5_ap_rep_enc_part *rep_ret;
     krb5_data data;
@@ -85,7 +84,8 @@ int main(int argc, char **argv)
 	char *host = NULL;
 	char *service = NULL;
 	char *port = NULL;
-	char *service_canonicalized = NULL;
+	char *service_principal_name = NULL;
+	char *client_principal_name = NULL;
 	
 	parse_args(argc, argv, &host, &port, &service);
 	if(argc < 2)
@@ -121,8 +121,8 @@ int main(int argc, char **argv)
 	retval = krb5_sname_to_principal(context, host, service, KRB5_NT_SRV_HST, &server);
 	
 	/* print canonicalized */
-	retval = krb5_unparse_name(context, server, &service_canonicalized);
-	printf("canonicalized: %s\n", service_canonicalized);
+	retval = krb5_unparse_name(context, server, &service_principal_name);
+	printf("canonicalized: %s\n", service_principal_name);
 		
 	for(runner = res_addresses; runner != NULL; runner = runner->ai_next)
 	{
@@ -164,8 +164,17 @@ int main(int argc, char **argv)
 	}
 	printf("After krb5_cc_get_principal\n");
 	
+	/* display the retrieved default principal from credential cache */
+	retval = krb5_unparse_name(context, client, &client_principal_name);
+	if(retval)
+	{
+		com_err("krb5_unparse_name", retval, "while parsing client principal name");
+		exit(1);
+	}
+	printf("client principal name: %s\n", client_principal_name);
+	
 	data.data = "Kukuriku";
-	data.length = strlen("kukuriku");
+	data.length = strlen(data.data);
 	
 	/*
 	krb5_sendauth:
@@ -175,7 +184,7 @@ int main(int argc, char **argv)
 	*/
 	retval = krb5_sendauth(context, &auth_context, (krb5_pointer)&sock, 
 	                        "version5", client, server, AP_OPTS_MUTUAL_REQUIRED, &data,
-	                        0, /* no creds, use credential cache */ ccdef, &err_ret, &rep_ret, &creds);
+	                        0, /* no creds, use credential cache */ ccdef, &err_ret, &rep_ret, NULL);
 	
 	
 	printf("After sentauth\n");
@@ -185,7 +194,8 @@ int main(int argc, char **argv)
         error_message(retval);
         exit(1);
     }
-
+	krb5_free_unparsed_name(context, client_principal_name);
+	krb5_free_unparsed_name(context, service_principal_name);
 	krb5_cc_close(context, ccdef);
 	krb5_auth_con_free(context, auth_context);
 	krb5_free_principal(context, client);

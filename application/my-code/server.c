@@ -171,7 +171,7 @@ int main(int argc, char **argv)
 	}	
 	
 	/* takes a service name and host name as strings, and canonicalize into a principal name */
-	retval = krb5_sname_to_principal(context, NULL, service, KRB5_NT_SRV_HST, &server);
+	retval = krb5_sname_to_principal(context, host, service, KRB5_NT_SRV_HST, &server);
 	if(retval)
 	{
 		perror("krb5_sname_to_principal");

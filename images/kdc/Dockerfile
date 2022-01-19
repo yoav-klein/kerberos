@@ -16,8 +16,8 @@ FROM ubuntu-minimum:0.1
 
 RUN apt-get update && apt-get install -y krb5-kdc krb5-admin-server
 
-COPY ./krb5.conf /etc/krb5.conf
-COPY ./kadm5.acl etc/krb5kdc/kadm5.acl
+COPY ./config_files/krb5/kdc/krb5.conf /etc/krb5.conf
+COPY ./config_files/krb5/kdc/kadm5.acl etc/krb5kdc/kadm5.acl
 
 RUN mkdir -p /var/log/kerberos
 RUN touch /var/log/kerberos/krb5.log
@@ -28,7 +28,7 @@ RUN kdb5_util create -r "MYEXAMPLE.COM" -P yoavklein3 -s
 
 RUN kadmin.local add_principal -pw "admin" admin/admin
 
-COPY ./start.sh /start.sh
+COPY ./kdc/start.sh /start.sh
 ENTRYPOINT ["/start.sh"]
 
 CMD ["tail", "-f", "/dev/null"]

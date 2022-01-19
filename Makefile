@@ -4,8 +4,6 @@ RESET="\e[0m"
 
 SHELL=/bin/bash
 
-
-
 .PHONY: network
 network:
 	@./create-network.sh
@@ -22,10 +20,10 @@ build-docker: pre-build
 .PHONY: build-applications
 build-applications:
 	@echo -e $(GREEN)"*** Building application"$(RESET)
-	@cd application; make
+	@cd application/my-code; make
 	@if [ ! -d bin ]; then mkdir bin; fi
-	@cp application/server/server bin
-	@cp application/client/client bin
+	@cp application/my-code/server bin
+	@cp application/my-code/client bin
 
 .PHONY: init
 init: build-all
@@ -38,5 +36,5 @@ build-all: build-docker build-applications
 clean:
 	@echo -e $(GREEN)"*** Cleaning.."$(RESET)
 	@docker-compose down
-	@cd application; make clean
+	@cd application/my-code; make clean
 	@rm bin/ -rf || echo "hello" > /dev/null

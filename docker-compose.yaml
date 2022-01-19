@@ -2,21 +2,24 @@ version: "3.9"
 services:
     kdc:
         build:
-            context: ./images/kdc
+            context: ./images
+            dockerfile: ./kdc/Dockerfile
         container_name: krb5-kdc
         hostname: kdc-myexample-com
         networks:
         - myexample.com
     server:
         build:
-            context: ./images/server
+            context: ./images
+            dockerfile: ./server/Dockerfile
         container_name: krb5-server
         hostname: server-myexample-com
         networks:
         - myexample.com
     client:
         build:
-            context: ./images/client
+            context: ./images
+            dockerfile: ./client/Dockerfile
         container_name: krb5-client
         hostname: client-myexample-com
         networks:
