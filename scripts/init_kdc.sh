@@ -22,3 +22,4 @@ EOF
 
 docker cp $kdc_container:/etc/krb5.keytab .
 docker cp krb5.keytab $server_container:/etc/krb5.keytab
+rm krb5.keytab

@@ -9,3 +9,4 @@ RUN apt-get install -y iputils-ping
 RUN apt-get install -y tcpdump
 RUN apt-get install -y netcat
 RUN apt-get install -y vim
+RUN apt-get install -y gdb

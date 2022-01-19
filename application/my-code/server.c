@@ -141,16 +141,16 @@ int main(int argc, char **argv)
 	
 	parse_args(argc, argv, &port, &service, &keytab_str, &host);
 	
-	printf("port: %d\n", port);
-	printf("service: %s\n", service);
-	printf("host: %s\n", host);
-	printf("keytab: %s\n", keytab_str);
-	
 	if(!port)
 	{
 		usage(*argv);
 		exit(1);
 	}
+	
+	printf("port: %d\n", port);
+	printf("service: %s\n", service);
+	printf("host: %s\n", host);
+	printf("keytab: %s\n", keytab_str);
 	
 	/* init context */
 	retval = krb5_init_context(&context);
@@ -199,7 +199,6 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	
-	printf("AFTER RECVAUTH\n");
 	
 	retval = krb5_unparse_name(context, ticket->enc_part2->client, &client_name);
 	if(retval)
@@ -207,10 +206,16 @@ int main(int argc, char **argv)
 		error_message(retval);
 	}
 	
+	printf("Authenticated !!!\n");
+	printf("You are: %s\n", client_name);
+	
 	/*  freeing structures */
 	krb5_free_ticket(context, ticket);
 	krb5_free_principal(context, server);
-	krb5_kt_close(context, keytab);
+	if(keytab)
+	{
+		krb5_kt_close(context, keytab);
+	}
 	krb5_auth_con_free(context, auth_context);
 	krb5_free_context(context);
 	
