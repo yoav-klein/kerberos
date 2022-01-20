@@ -30,6 +30,9 @@
 		This function gets the default credentials cache name and stores it in a `krb5_ccache` struct
 	* krb5_cc_get_principal
 		This function gets the default principal from the credentials cache.
+	* krb5_sendauth
+		This function will look for a ticket for the particular service in the credentials cache, and if not found,
+		will issue a TGS_REQ message to the TGS, asking for a ticket. It will then send the ticket to the server.
 
 
 

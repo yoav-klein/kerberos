@@ -21,8 +21,21 @@ this container using the domain name `server.example.com`.
 
 ## KDC
 ---
-Once we have our containers built and ready, we set up our KDC
+Once we have our containers built and ready, we set up our KDC:
+1. Create a `admin` principal (actually not very needed but whatever)
+2. Create an account for user named `yoav` - this will be the client
+3. Create an account for the service (Service Principal Name) of the form `service/domainname`
+4. Create a keytab file for the service account.
+
+Additionally, we copy the keytab file to the `krb5-server` container to `/etc/krb5.keytab` which is the default location
+for a keytab.
+
+This is all done by the `init-kdc.sh` script.
 
 ## Application
 ---
-Once we have
+We have a demo application which is a little bit more elegant form of the reference code from the MIT `krb5` repository, also included here.
+There is a `server` running in the `krb5-server` container and a `client` running in the `krb5-client` container.
+
+The server opens a TCP socket and waits for connection, and once arrives, authenticates the user.
+The client connects to that same port and sends the ticket it got from the TGS.
