@@ -1,3 +1,45 @@
+
+/*******************************************************************
+
+	client.c
+	==========
+	a client application that communicates with a kerberized server application
+	using the libkrb5 API.
+	
+	Usage:
+		./client -h <server_host> -p <port> [-s <service>]
+	
+	Example:
+		./client -h krb5-server.myexample.com -p 8081 -s host
+	
+	Flow:
+		1. using the host, the IP of the server is retrieved (using DNS).
+		2. using the host and the optional service, a service principal name is composed
+		using `krb5_sname_to_principal`.
+		3. the default credentials cache is retrieved and stored in ccdef
+		4. the default principal is retrieved from the credentials cache (assuming kinit was performed)
+		5. the krb5_sendauth function is called, which sends a AP_REQ to the server.
+		
+	NOTES:
+	* krb5_sname_to_principal
+		This function performs a forward DNS lookup to find the IP address of the domain name, and then
+		a reverse lookup (PTR) to find back the domain name, and by this composes the principal name.
+		That can be problematic since the reverse lookup can yield a different principal name than the one configured in the KDC
+		So we disabled this by setting `rnds = false` in the krb5.conf file.
+	* krb_cc_default
+		This function gets the default credentials cache name and stores it in a `krb5_ccache` struct
+	* krb5_cc_get_principal
+		This function gets the default principal from the credentials cache.
+
+
+
+
+
+*********************************************************************/
+
+
+
+
 #define _POSIX_C_SOURCE 200112
 
 #include <stdio.h> /* pritf */
@@ -16,7 +58,7 @@
 
 static void usage(const char *name)
 {
-    printf("Usage: %s -h <host> -p <port> -s <service>\n", name);
+    printf("Usage: %s -h <host> -p <port> [-s <service>]\n", name);
 
 }
 
@@ -26,7 +68,7 @@ void parse_args(int argc, char **argv, char **host, char **port, char **service)
 	extern char *optarg;
 	char ch = 0;
 	
-	while((ch = getopt(argc, argv, "p:s:S:h:")) != -1)
+	while((ch = getopt(argc, argv, "h:p:s:")) != -1)
 	{
 		switch(ch)
 		{
@@ -116,13 +158,13 @@ int main(int argc, char **argv)
 	    perror("error looking up host");
 	    exit(1);
 	}
-	printf_found_addresses(res_addresses);
+	/*printf_found_addresses(res_addresses);*/ /* for debugging and diagnostics */
 	
 	retval = krb5_sname_to_principal(context, host, service, KRB5_NT_SRV_HST, &server);
 	
 	/* print canonicalized */
 	retval = krb5_unparse_name(context, server, &service_principal_name);
-	printf("canonicalized: %s\n", service_principal_name);
+	printf("client: canonicalized service name: %s\n", service_principal_name);
 		
 	for(runner = res_addresses; runner != NULL; runner = runner->ai_next)
 	{
@@ -153,7 +195,6 @@ int main(int argc, char **argv)
 	    com_err(argv[0], retval, "while getting default ccache");
 	    exit(1);
 	}
-	printf("After krb5_cc_default\n");	
 		
 	/* get the default principal of a credential cache */
 	retval = krb5_cc_get_principal(context, ccdef, &client);
@@ -162,7 +203,6 @@ int main(int argc, char **argv)
 	    com_err("krb5_cc_get_principal", retval, "while getting client principal name");
 	    exit(1);
 	}
-	printf("After krb5_cc_get_principal\n");
 	
 	/* display the retrieved default principal from credential cache */
 	retval = krb5_unparse_name(context, client, &client_principal_name);
@@ -171,7 +211,7 @@ int main(int argc, char **argv)
 		com_err("krb5_unparse_name", retval, "while parsing client principal name");
 		exit(1);
 	}
-	printf("client principal name: %s\n", client_principal_name);
+	printf("client: client principal name: %s\n", client_principal_name);
 	
 	data.data = "Kukuriku";
 	data.length = strlen(data.data);
@@ -187,13 +227,14 @@ int main(int argc, char **argv)
 	                        0, /* no creds, use credential cache */ ccdef, &err_ret, &rep_ret, NULL);
 	
 	
-	printf("After sentauth\n");
 	if(retval)
     {
         com_err(argv[0], retval, "after sentauth");
         error_message(retval);
         exit(1);
     }
+	
+	printf("client: Authenticated successfully!\n");
 	krb5_free_unparsed_name(context, client_principal_name);
 	krb5_free_unparsed_name(context, service_principal_name);
 	krb5_cc_close(context, ccdef);

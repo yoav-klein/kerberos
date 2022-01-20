@@ -1,12 +1,12 @@
 
 GREEN="\e[32;1m"
 RESET="\e[0m"
-
+SCRIPTS=scripts
 SHELL=/bin/bash
 
 .PHONY: network
 network:
-	@./create-network.sh
+	@$(SCRIPTS)/docker-network.sh create
 
 .PHONY: pre-build
 pre-build: network
@@ -14,12 +14,12 @@ pre-build: network
 	
 .PHONY: build-docker
 build-docker: pre-build
-	@echo -e $(GREEN)"*** Building docker images"$(RESET)
+	@echo -e $(GREEN)"=== Building docker images"$(RESET)
 	@cd images; docker-compose build
 
 .PHONY: build-applications
 build-applications:
-	@echo -e $(GREEN)"*** Building application"$(RESET)
+	@echo -e $(GREEN)"=== Building application"$(RESET)
 	@cd application/my-code; make
 	@if [ ! -d bin ]; then mkdir bin; fi
 	@cp application/my-code/server bin
@@ -27,14 +27,23 @@ build-applications:
 
 .PHONY: init
 init: build-all
-	@echo -e $(GREEN)"*** Copying applications into containers"$(RESET)
-	scripts/init.sh
-	
+	@echo -e $(GREEN)"=== Starting docker-compose containers"$(RESET)
+	@docker-compose up -d
+	$(SCRIPTS)/init-kdc.sh
+	$(SCRIPTS)/copy-binaries.sh
+
+.PHONY: build-all	
 build-all: build-docker build-applications
 	@cd images; docker-compose up -d --build
 
+
+.PHONY: test
+test:
+	$(SCRIPTS)/test.sh
+
 clean:
-	@echo -e $(GREEN)"*** Cleaning.."$(RESET)
+	@echo -e $(GREEN)"=== Cleaning.."$(RESET)
 	@docker-compose down
+	@$(SCRIPTS)/docker-network.sh destroy
 	@cd application/my-code; make clean
 	@rm bin/ -rf || echo "hello" > /dev/null

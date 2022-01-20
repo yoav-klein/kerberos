@@ -1,3 +1,27 @@
+
+/***************************************************************
+
+	server.c
+	==========
+	a kerberized service application that receives kerberos authentication from a client
+	
+	Usage:
+		./server -h <host> -p <port> [-s <service>] [-S keytab]
+		
+		<host> and <service> must match the service/host of the service principal name in the keytab file
+
+	Example:
+		./server -h krb5-server.myexample.com -p 8081 -s host
+	
+	Flow:
+		1. resolve the service principal name with `krb5_sname_to_principal`
+		2. open a TCP socket for listening
+		3. call `krb5_recvauth` to authenticate the user.
+
+
+******************************************************************/
+
+
 #define _POSIX_C_SOURCE 200112
 
 #include <unistd.h> /* getopt */
@@ -52,7 +76,7 @@ void bind_socket(int sockfd, int is_specific_addr, char* addr, int port)
 		perror("bind");
 		exit(1);
 	}
-	printf("Bound to %s\n", inet_ntoa(servaddr.sin_addr));
+	printf("server: Bound to %s\n", inet_ntoa(servaddr.sin_addr));
 }
 
 
@@ -80,7 +104,7 @@ int receive_connection(int sockfd)
 		exit(1);
 	}
 	
-	printf("Received connection from: %s:%d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
+	printf("server: Received connection from: %s:%d\n", inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
 	
 	return cfd;
 }
@@ -88,14 +112,14 @@ int receive_connection(int sockfd)
 
 static void usage(const char *name)
 {
-	printf("Usage: %s [-p port] [-s service] [-S keytab] [-h host]\n", name);
+	printf("Usage: %s [-h host] [-p port] [-s service] [-S keytab] \n", name);
 }
 
 void parse_args(int argc, char **argv, int *port, char **service, char **keytab, char **host)
 {
 	extern int opterr, optind;
 	extern char *optarg;
-	char ch = 0;
+	char ch = 0; 
 	
 	while((ch = getopt(argc, argv, "p:s:S:h:")) != -1)
 	{
@@ -147,10 +171,6 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	
-	printf("port: %d\n", port);
-	printf("service: %s\n", service);
-	printf("host: %s\n", host);
-	printf("keytab: %s\n", keytab_str);
 	
 	/* init context */
 	retval = krb5_init_context(&context);
@@ -166,7 +186,7 @@ int main(int argc, char **argv)
 	
 	if(retval)
 	{
-		perror("krb5_init_context");
+		com_err(argv[0], retval,"krb5_init_context");
 		exit(1);
 	}	
 	
@@ -174,13 +194,13 @@ int main(int argc, char **argv)
 	retval = krb5_sname_to_principal(context, host, service, KRB5_NT_SRV_HST, &server);
 	if(retval)
 	{
-		perror("krb5_sname_to_principal");
+		com_err(argv[0], retval, "krb5_sname_to_principal");
 		exit(1);
 	}
 	
 	
 	retval = krb5_unparse_name(context, server, &service_canonicalized);
-	printf("canonicalized: %s\n", service_canonicalized);
+	printf("server: canonicalized: %s\n", service_canonicalized);
 	
 	sock = create_socket();
 	bind_socket(sock, 0, NULL, port);
@@ -206,8 +226,8 @@ int main(int argc, char **argv)
 		error_message(retval);
 	}
 	
-	printf("Authenticated !!!\n");
-	printf("You are: %s\n", client_name);
+	printf("server: Authenticated !!!\n");
+	printf("server: You are: %s\n", client_name);
 	
 	/*  freeing structures */
 	krb5_free_ticket(context, ticket);
