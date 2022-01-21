@@ -16,9 +16,7 @@ network_name=myexample.com
 
 
 create() {
-	docker network ls | awk '{print $2}' | grep $network_name > /dev/null
-
-	if [ $? == 0 ]; then
+	if [ "$network_exists" ]; then
 		echo "=== Network exists"
 		exit 0
 	fi
@@ -32,8 +30,15 @@ create() {
 }
 
 destroy() {
+	if ! [ "$network_exists" ]; then
+		echo "=== Network doesn't exist"
+		exit 0
+	fi
+	
 	echo -e "\e[32;1m=== Deleting network ${network_name}\e[0m"
 	docker network rm $network_name
 }
+
+network_exists=$(docker network ls -q --filter name=${network_name})
 
 $1

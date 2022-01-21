@@ -39,3 +39,42 @@ There is a `server` running in the `krb5-server` container and a `client` runnin
 
 The server opens a TCP socket and waits for connection, and once arrives, authenticates the user.
 The client connects to that same port and sends the ticket it got from the TGS.
+
+
+## Usage
+---
+
+### Build the docker images
+This command will build the required docker images.
+
+```
+$ make build-docker
+```
+
+
+Also, you can use the 
+```
+$ make build-all
+```
+
+that will do all the above steps.
+
+### Build the application
+This will build the `server` and `client` applications and put them in the `bin` folder.
+
+```
+$ make build-application
+```
+
+### Initialize the infrastructure
+This will initialize the KDC with the required principals, create a keytab and copy it to the `krb5-server` container,
+and also copy the client and server applications to the containers.
+
+
+```
+$ make init
+```
+
+
+ 
+
