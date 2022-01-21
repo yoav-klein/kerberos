@@ -75,6 +75,11 @@ and also copy the client and server applications to the containers.
 $ make init
 ```
 
+### Run the test
+Now that everything is set up, run the `server` and `client` applications to test the Kerberos authentication:
 
+```
+$ make test
+```
  
 
