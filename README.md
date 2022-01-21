@@ -52,19 +52,21 @@ $ make build-docker
 ```
 
 
-Also, you can use the 
-```
-$ make build-all
-```
-
-that will do all the above steps.
-
 ### Build the application
 This will build the `server` and `client` applications and put them in the `bin` folder.
 
 ```
 $ make build-application
 ```
+
+
+
+Also, you can run
+```
+$ make build-all
+```
+
+that will do all the above steps.
 
 ### Initialize the infrastructure
 This will initialize the KDC with the required principals, create a keytab and copy it to the `krb5-server` container,
