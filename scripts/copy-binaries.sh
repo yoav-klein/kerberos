@@ -2,6 +2,8 @@
 
 #### Copy applications into containers
 
+echo -e "\e[32;1m=== Copying applications to containers"
+
 client_container=krb5-client
 server_container=krb5-server
 
