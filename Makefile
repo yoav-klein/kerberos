@@ -34,7 +34,7 @@ init: build-all
 
 .PHONY: build-all	
 build-all: build-docker build-applications
-	@cd images; docker-compose up -d --build
+	@cd images; docker-compose build
 
 
 .PHONY: test
