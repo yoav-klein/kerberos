@@ -57,8 +57,6 @@
 #include <arpa/inet.h> /*  inet_ntoa */
 
 
-
-
 static void usage(const char *name)
 {
     printf("Usage: %s -h <host> -p <port> [-s <service>]\n", name);
@@ -154,11 +152,6 @@ int main(int argc, char **argv)
 	if(status)
 	{
 	    printf("%s\n", gai_strerror(status));
-	    exit(1);
-	}
-	if(status)
-	{
-	    perror("error looking up host");
 	    exit(1);
 	}
 	/*printf_found_addresses(res_addresses);*/ /* for debugging and diagnostics */
