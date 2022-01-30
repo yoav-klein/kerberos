@@ -12,22 +12,21 @@
 #include <gssapi.h> /* gss_context */
 #include <string.h> /* strlen */
 
+#include "utils.h"
 
 /*
 
 NOTES
 
 1. Didn't use OID stuff here
-2. How is the service name received? what format?
-
-
+2. How is the service name received? what format?s
 
 */
 
 
 void usage()
 {
-	printf("client [-p <port>] [-d] [-m <mech>] host service [-f] message");
+	printf("client [-p <port>] [-d] [-m <mech>] host service [-f] message\n");
 }
 
 void parse_args(int argc, char **argv, char **port, int *delegate, char **mech, char **host, char **service, char **msg)
@@ -139,15 +138,6 @@ int connect_to_server(char *host, char *port)
 *
 ***************/
 
-int send_token(int fd, gss_buffer_desc *token)
-{
-
-}
-
-int recv_token(int fd, gss_buffer_desc *token)
-{
-
-}
 
 int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx, 
 				const gss_OID mech_type, OM_uint32 *ret_flags)
@@ -231,7 +221,7 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
      }
      while(GSS_S_CONTINUE_NEEDED == maj_stat);
 
-     
+     return 0;
 }
 
 int call_server(char *host, char *port, char *service, char *message)
@@ -255,7 +245,7 @@ int call_server(char *host, char *port, char *service, char *message)
 		exit(1);
 	}
 	
-
+	return 0;
 }
 
 int main(int argc, char **argv)
