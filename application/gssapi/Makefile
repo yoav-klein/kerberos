@@ -14,4 +14,4 @@ utils.o: utils.c
 	$(CC) -c $(CFLAGS) -o $@ $^
 
 clean:
-	rm client
+	@rm client server *.o 2>/dev/null | echo "hello" > /dev/null
