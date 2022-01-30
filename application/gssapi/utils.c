@@ -2,6 +2,8 @@
 #include <stdio.h> /* perror */
 #include <arpa/inet.h> /* htonl */
 #include <gssapi.h> /* gss_buffer_desc */
+#include <unistd.h> /* read */
+#include <stdlib.h> /* malloc */
 
 static int read_all(int fd, char *buffer, size_t len)
 {
@@ -64,6 +66,7 @@ int send_token(int fd, gss_buffer_desc *token)
         return -1;
     }
 
+    return 0;
 }
 
 /****************
@@ -87,7 +90,7 @@ int recv_token(int fd, gss_buffer_desc *token)
         return -1;
     }
 
-    token->length = ntohl((uint32_t)length_buffer);
+    token->length = ntohl(*(uint32_t*)&length_buffer);
     token->value = (char*)malloc(token->length);
     status = read_all(fd, token->value, token->length);
     if(-1 == status)
@@ -95,5 +98,5 @@ int recv_token(int fd, gss_buffer_desc *token)
         printf("recv_token: couldn't send token length");
         return -1;
     }
-
+    return 0;
 }
