@@ -9,6 +9,20 @@
 #include <netdb.h> /* getaddrinfo */
 #include <netinet/in.h> /* inet_ntoa */
 #include <arpa/inet.h> /*  inet_ntoa */
+#include <gssapi.h> /* gss_context */
+#include <string.h> /* strlen */
+
+
+/*
+
+NOTES
+
+1. Didn't use OID stuff here
+2. How is the service name received? what format?
+
+
+
+*/
 
 
 void usage()
@@ -108,6 +122,66 @@ int connect_to_server(char *host, char *port)
 	
 }
 
+/***************
+*	establish_context
+*
+*	Establishes a GSS-API context  with a specified service and returns 
+*	a context handle
+*
+*	Arguments:
+*	fd           -  file descriptor of a TCP socket of an opened connection with the server
+*	service_name - the name of the service
+*	mech_type    - mechanism type. should be GSS_C_NULL_OID
+*	ctx          - output parameter - returned context
+*	ret_flags    - returned flags from init_sec_context
+*
+*	returns -1 on error
+*
+***************/
+
+int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx, 
+				const gss_OID mech_type, OM_uint32 *ret_flags)
+{
+	gss_buffer_desc gss_name, send_token, recv_token, *recv_token_ptr;
+	gss_name_t target_name;
+	OM_uint32 maj_stat, min_stat;
+	
+	/* import the service name into target_name */
+	gss_name.value = service;
+	gss_name.length = strlen(gss_name.value) + 1;
+	
+	maj_stat = gss_import_name(&min_stat, &gss_name, 
+     (gss_OID)GSS_C_NT_HOSTBASED_SERVICE, &target_name);
+     
+     if(maj_stat != GSS_S_COMPLETE)
+     {
+     	printf("gss_import_name: Something is wrong\n");
+     	/* TODO: gss_display_status */
+     	exit(1);
+     }
+     
+     recv_token_ptr = GSS_C_NO_BUFFER;
+     *gss_context = GSS_C_NO_CONTEXT;
+     
+     do
+     {
+		maj_stat = gss_init_sec_context(&min_stat,
+			GSS_C_NO_CREDENTIAL, /* indicate default credentials */
+			target_name, /* name of the server */
+			mech_type,
+			GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG,
+			0, /* no time req */
+			NULL, /* no channel binding */
+			recv_token_ptr, /* this is what we get from peer, first it's null */
+			NULL, /* ignore mech type */
+			&send_token, /* this will be sent to the peer */
+			ret_flags,
+			NULL /* ignore time rec */
+     }		
+     while()
+     
+}
+
 int call_server(char *host, char *port, char *service, char *message)
 {
 	int sock = 0;
@@ -141,3 +215,6 @@ int main(int argc, char **argv)
 	
 	return 0;
 }
+
+
+
