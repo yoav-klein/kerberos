@@ -139,15 +139,25 @@ int connect_to_server(char *host, char *port)
 *
 ***************/
 
+int send_token(int fd, gss_buffer_desc *token)
+{
+
+}
+
+int recv_token(int fd, gss_buffer_desc *token)
+{
+
+}
+
 int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx, 
 				const gss_OID mech_type, OM_uint32 *ret_flags)
 {
-	gss_buffer_desc gss_name, send_token, recv_token, *recv_token_ptr;
+	gss_buffer_desc gss_name, send_tok, recv_tok, *recv_tok_ptr;
 	gss_name_t target_name;
 	OM_uint32 maj_stat, min_stat;
 	
 	/* import the service name into target_name */
-	gss_name.value = service;
+	gss_name.value = service_name;
 	gss_name.length = strlen(gss_name.value) + 1;
 	
 	maj_stat = gss_import_name(&min_stat, &gss_name, 
@@ -157,34 +167,79 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
      {
      	printf("gss_import_name: Something is wrong\n");
      	/* TODO: gss_display_status */
-     	exit(1);
+     	return -1;
      }
      
-     recv_token_ptr = GSS_C_NO_BUFFER;
-     *gss_context = GSS_C_NO_CONTEXT;
+     recv_tok_ptr = GSS_C_NO_BUFFER;
+     *ctx = GSS_C_NO_CONTEXT;
      
      do
      {
 		maj_stat = gss_init_sec_context(&min_stat,
 			GSS_C_NO_CREDENTIAL, /* indicate default credentials */
+			ctx,
 			target_name, /* name of the server */
 			mech_type,
 			GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG,
 			0, /* no time req */
 			NULL, /* no channel binding */
-			recv_token_ptr, /* this is what we get from peer, first it's null */
+			recv_tok_ptr, /* this is what we get from peer, first it's null */
 			NULL, /* ignore mech type */
-			&send_token, /* this will be sent to the peer */
+			&send_tok, /* this will be sent to the peer */
 			ret_flags,
 			NULL /* ignore time rec */
-     }		
-     while()
+			);
+		if(NULL == ctx)
+		{
+			printf("couldn't create context\n");
+			return -1;
+		}
+		/* if there's something in the recv_token */
+		if(GSS_C_NO_BUFFER != recv_tok_ptr)
+		{
+			gss_release_buffer(&min_stat, recv_tok_ptr);
+		}
+		/* if not one of these, an error occured */
+		if((GSS_S_COMPLETE != maj_stat) && (GSS_S_CONTINUE_NEEDED != maj_stat))
+		{
+			printf("initializing context failed\n");
+			gss_release_name(&min_stat, &target_name);
+			return -1;
+		}
+		if(send_tok.length > 0)
+		{
+			printf("Sending token to server\n");
+			if(-1 == send_token(fd, &send_tok))
+			{
+				gss_release_name(&min_stat, &target_name);
+				gss_release_buffer(&min_stat, &send_tok);
+				return -1;
+			}
+			gss_release_buffer(&min_stat, &send_tok);
+			
+			if(GSS_S_CONTINUE_NEEDED == maj_stat)
+			{
+				printf("Continue needed...\n");
+				if(-1 == recv_token(fd, &recv_tok))
+				{
+					gss_release_name(&min_stat, &target_name);
+					return -1;
+				}
+				recv_tok_ptr = &recv_tok;
+			}
+		}
+     }
+     while(GSS_S_CONTINUE_NEEDED == maj_stat);
+
      
 }
 
 int call_server(char *host, char *port, char *service, char *message)
 {
+	int res = 0;
 	int sock = 0;
+	gss_ctx_id_t context;
+	OM_uint32 ret_flags;
 	
 	sock = connect_to_server(host, service);
 	if(-1 == sock)
@@ -193,6 +248,12 @@ int call_server(char *host, char *port, char *service, char *message)
 		exit(1);
 	}
 	
+	res = establish_context(sock, service, &context, GSS_C_NULL_OID, &ret_flags);
+	if(-1 == res)
+	{
+		printf("context establishment failed\n");
+		exit(1);
+	}
 	
 
 }
