@@ -13,6 +13,9 @@
 *		1. connecting to the server using TCP
 *		2. imports the service name to GSS-API internal structure
 *		3. creates a security context with the server
+*		4. wrap a message with gss_wrap
+*		5. send the message to peer
+*		6. read a MIC back from the peer and verify it, for "transmission confirmation"
 *
 ***********************************************************/
 
@@ -31,6 +34,7 @@
 #include <arpa/inet.h> /*  inet_ntoa */
 #include <gssapi.h> /* gss_context */
 #include <string.h> /* strlen */
+#include <unistd.h> /* close */
 
 #include "utils.h"
 
@@ -245,15 +249,26 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
     return 0;
 }
 
+
+/*
+	questions
+
+	1. context_flags vs ret_flags? are the same?
+	2. 
+
+*/
 int call_server(char *host, char *port, char *service, char *message)
 {
 	int res = 0;
 	int sock = 0;
 	int is_open = 0;
+	int conf_req_flag = 0;
+	int conf_state = 0;
 
 	gss_ctx_id_t context;
 	gss_name_t src_name, target_name;
 	gss_buffer_desc sname, tname;
+	gss_buffer_desc in_buff, out_buffer;
 	OM_uint32 req_output_size = 1012; /* not sure why, this is TCP.. */
 	OM_uint32 ret_flags, lifetime, context_flags;
 	OM_uint32 maj_stat, min_stat;
@@ -355,9 +370,77 @@ int call_server(char *host, char *port, char *service, char *message)
 	gss_release_buffer(&min_stat, &sname);
 	gss_release_buffer(&min_stat, &tname);
 
-	/* TODO: Skipping some stuff here, see the reference */
+	/* find out if confidentiality is supported */
+	if(ret_flags & GSS_C_CONF_FLAG)
+	{
+		conf_req_flag = 1;
+	}
+	else
+	{
+		conf_req_flag = 0;
+	}
 
+	/* preparing the message */
+	in_buff.value = message;
+	in_buff.length = strlen(message) + 1;
+
+	/* TODO: Skipping some stuff here, see the reference */
+	maj_stat = gss_wrap(&min_stat,
+		context,
+		conf_req_flag, /* 1 - both integrity and confidentiality are requested, 0 - only integrity */
+		GSS_C_QOP_DEFAULT,
+		&in_buff,
+		&conf_state, /* output parameter indicating whether or not confidentiality applied */
+		&out_buffer /* output to send to the peer */
+		);
+	if(GSS_S_COMPLETE != maj_stat)
+	{
+		printf("gss_wrap failed\n");
+		return -1;
+	}
+
+	if(!conf_state)
+	{
+		printf("Warning! No confidentiality provided !\n");
+	}
+
+	/* send to the server */
+	if(-1 == send_token(sock, &out_buffer))
+	{
+		printf("couldn't send message to peer\n");
+		return -1;
+	}
+	gss_release_buffer(&min_stat, &out_buffer);
 	
+	/* read verification from the server */
+	if(-1 == recv_token(sock, &out_buffer))
+	{
+		printf("couldn't receive verification message from peer\n");
+		return -1;
+	}
+
+	/* verify MIC */	
+	maj_stat = gss_verify_mic(&min_stat, context,
+		&in_buff,
+		&out_buffer,
+		NULL /* QOP of MIC - not interested */
+		);
+	if(GSS_S_COMPLETE != maj_stat)
+	{
+		printf("gss_verify_mic failed\n");
+		return -1;
+	}
+
+	gss_release_buffer(&min_stat, &out_buffer);
+
+	maj_stat = gss_delete_sec_context(&min_stat, &context, GSS_C_NO_BUFFER);
+	if(GSS_S_COMPLETE != maj_stat)
+	{
+		printf("gss_delete_sec_context failed\n");
+		return -1;
+	}
+
+	close(sock);
 
 	return 0;
 }
@@ -375,8 +458,12 @@ int main(int argc, char **argv)
 	printf("port: %s, delegate: %d, mech: %s, file: %s\n", port, delegate, mech, file);
 	printf("host: %s, service: %s, message: %s\n", host, service, message);
 	
-	call_server(host, port, service, "Give me your file\n");
-	
+	if(-1 == call_server(host, port, service, "Give me your file\n"))
+	{
+		printf("call server failed !\n");
+
+		return 1;
+	}
 	
 	return 0;
 }
