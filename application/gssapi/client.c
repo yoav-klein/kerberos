@@ -1,3 +1,23 @@
+
+/*****************************************************
+*	
+*	client.c
+*	
+*	communicates with the server using GSS-API
+*
+*	Usage:
+*		$ client [-p <port>] [-d] [-m <mech>] host service [-f] message
+*
+*		
+*	Flow:
+*		1. connecting to the server using TCP
+*		2. imports the service name to GSS-API internal structure
+*		3. creates a security context with the server
+*
+***********************************************************/
+
+
+
 #define _POSIX_C_SOURCE 200112
 
 
@@ -144,7 +164,8 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 {
 	gss_buffer_desc gss_name, send_tok, recv_tok, *recv_tok_ptr;
 	gss_name_t target_name;
-	OM_uint32 maj_stat, min_stat;
+	OM_uint32 maj_stat, min_stat, lifetime;
+	
 	
 	/* import the service name into target_name */
 	gss_name.value = service_name;
@@ -153,18 +174,18 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 	maj_stat = gss_import_name(&min_stat, &gss_name, 
      (gss_OID)GSS_C_NT_HOSTBASED_SERVICE, &target_name);
      
-     if(maj_stat != GSS_S_COMPLETE)
-     {
-     	printf("gss_import_name: Something is wrong\n");
-     	/* TODO: gss_display_status */
-     	return -1;
-     }
-     
-     recv_tok_ptr = GSS_C_NO_BUFFER;
-     *ctx = GSS_C_NO_CONTEXT;
-     
-     do
-     {
+	if(maj_stat != GSS_S_COMPLETE)
+	{
+	printf("gss_import_name: Something is wrong\n");
+	/* TODO: gss_display_status */
+	return -1;
+	}
+	
+	recv_tok_ptr = GSS_C_NO_BUFFER;
+	*ctx = GSS_C_NO_CONTEXT;
+	
+	do
+	{
 		maj_stat = gss_init_sec_context(&min_stat,
 			GSS_C_NO_CREDENTIAL, /* indicate default credentials */
 			ctx,
@@ -218,19 +239,27 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 				recv_tok_ptr = &recv_tok;
 			}
 		}
-     }
-     while(GSS_S_CONTINUE_NEEDED == maj_stat);
+    }
+    while(GSS_S_CONTINUE_NEEDED == maj_stat);
 
-     return 0;
+    return 0;
 }
 
 int call_server(char *host, char *port, char *service, char *message)
 {
 	int res = 0;
 	int sock = 0;
+	int is_open = 0;
+
 	gss_ctx_id_t context;
-	OM_uint32 ret_flags;
-	
+	gss_name_t src_name, target_name;
+	gss_buffer_desc sname, tname;
+	OM_uint32 req_output_size = 1012; /* not sure why, this is TCP.. */
+	OM_uint32 ret_flags, lifetime, context_flags;
+	OM_uint32 maj_stat, min_stat;
+	OM_uint32 max_input_size = 0;
+	gss_OID mechanism, name_type;
+
 	sock = connect_to_server(host, service);
 	if(-1 == sock)
 	{
@@ -245,6 +274,91 @@ int call_server(char *host, char *port, char *service, char *message)
 		exit(1);
 	}
 	
+	/* get context information */
+	maj_stat = gss_inquire_context(&min_stat, context, 
+		&src_name, /* name of initiator. must be freed with free_name */
+		&target_name, /* name of the acceptor. must be freed with free_name */
+		&lifetime, /* lifetime of context */
+		&mechanism, /* mechanism of the context. pointer to static storage - don't attempt to free */
+		&context_flags, /* flags.  */
+		NULL, /* whether or not this application is the initiator. not needed */
+		&is_open /* whether or not the context is fully established */
+	);
+	if(GSS_S_NO_CONTEXT == maj_stat)
+	{
+		printf("context could not be accessed\n");
+		return -1;
+	}
+	if(!(GSS_S_COMPLETE == maj_stat))
+	{
+		printf("gss_inquire_contetx failed\n");
+		return -1;
+	}
+
+	/* get wrap size limit without confidentiality */
+	maj_stat = gss_wrap_size_limit(&min_stat, context,
+		0, /* NOT required confidentiality */
+		GSS_C_QOP_DEFAULT, /* default QOP of underlying mechanism */
+		req_output_size,
+		&max_input_size
+		);
+	
+	if(GSS_S_COMPLETE != maj_stat)
+	{
+		printf("gss_wrap_size_limit failed\n");
+		return -1;
+	}
+
+	printf("max input size without confidentiality: %d\n", max_input_size);
+
+	/* get wrap size limit with confidentiality */
+	maj_stat = gss_wrap_size_limit(&min_stat, context,
+		1, /* required confidentiality */
+		GSS_C_QOP_DEFAULT, /* default QOP of underlying mechanism */
+		req_output_size,
+		&max_input_size
+		);
+	
+	if(GSS_S_COMPLETE != maj_stat)
+	{
+		printf("gss_wrap_size_limit failed\n");
+		return -1;
+	}
+
+	printf("max input size with confidentiality: %d\n", max_input_size);
+
+	/* get names of server and client */
+	maj_stat = gss_display_name(&min_stat, src_name, &sname, &name_type);
+	if(GSS_S_COMPLETE != maj_stat)
+	{
+		printf("gss_display_name failed\n");
+		return -1;
+	}
+
+	maj_stat = gss_display_name(&min_stat, target_name, &tname, &name_type);
+	if(GSS_S_COMPLETE != maj_stat)
+	{
+		printf("gss_display_name failed\n");
+		return -1;
+	}
+
+	printf("%s to %s, lifetime: %u, flags: %x, %s\n",
+			(char*)sname.value,
+			(char*)tname.value,
+			lifetime,
+			context_flags,
+			(is_open)? "open": "close");
+	
+	/* release resources */
+	gss_release_name(&min_stat, &src_name);
+	gss_release_name(&min_stat, &target_name);
+	gss_release_buffer(&min_stat, &sname);
+	gss_release_buffer(&min_stat, &tname);
+
+	/* TODO: Skipping some stuff here, see the reference */
+
+	
+
 	return 0;
 }
 

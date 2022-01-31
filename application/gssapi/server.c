@@ -1,4 +1,21 @@
 
+/*****************************************
+*   
+*   server.c
+*
+*   a server application that authenticates the client
+*   using GSS-API
+*
+*   Usage:
+*       $ server [-p <port>] [-m <mech>] service
+*
+*   Flow:
+*       1. acquires the service credentials
+*       2. 
+*
+********************************************/
+
+
 #include <stdio.h> /* printf */
 #include <getopt.h> /* getopt */
 #include <stdlib.h> /* exit */
