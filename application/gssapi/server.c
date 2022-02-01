@@ -11,7 +11,10 @@
 *
 *   Flow:
 *       1. acquires the service credentials
-*       2. 
+*       2. opens a TCP connection with the client
+*       3. establishes a GSSAPI context with the client
+*       4. receives a message from the client
+*       5. signs the message and sends back a MIC
 *
 ********************************************/
 
@@ -31,7 +34,7 @@
 
 void usage()
 {
-	printf("server [-p <port>] [-m <mech>] service\n");
+	printf("server -p <port> [-m <mech>] service\n");
 }
 
 void parse_args(int argc, char **argv, int *port, char **mech, char **service)
@@ -39,7 +42,7 @@ void parse_args(int argc, char **argv, int *port, char **mech, char **service)
 	extern int opterr, optind;
 	extern char *optarg;
 	char ch = 0;
-		
+	*port = 0;
 	while(-1 != (ch = getopt(argc, argv, "p:m:")))
 	{
 		switch(ch)
@@ -62,7 +65,11 @@ void parse_args(int argc, char **argv, int *port, char **mech, char **service)
 				break;
 		}
 	}
-	
+	if(!*port)
+    {
+        usage();
+        exit(1);
+    }
 	if(argc - optind < 1)
 	{
 		usage();
@@ -71,7 +78,6 @@ void parse_args(int argc, char **argv, int *port, char **mech, char **service)
 	
 	*service = argv[optind++];
 }
-
 
 
 int create_socket()
@@ -92,7 +98,6 @@ int create_socket()
 	
 	return sockfd;
 }
-
 
 int bind_socket(int sockfd, char* addr, int port)
 {
@@ -155,8 +160,13 @@ int receive_connection(int sockfd)
 *
 *   acquire_creds
 *
-*   acquiring credentials for the server and 
-*   stores them in out_creds
+*   Purpose:
+*       acquiring credentials for the server and 
+*       stores them in out_creds
+*
+*   Arguments:
+*       service_name - name of the service
+*       out_creds    - credentials outputed
 *
 ************************************/
 
@@ -175,25 +185,30 @@ int acquire_creds(char *service_name, gss_cred_id_t *out_creds)
     
     if(GSS_S_COMPLETE != maj_stat)
     {
-        printf("server import name failed\n");
+        display_status("server gss_import_name", maj_stat, min_stat);
         return -1;
     }
 
-    printf("name of service:\n");
     maj_stat = gss_display_name(&min_stat, gssname_service_name, &gssbuff_service_name2, NULL);
-    printf("%s\n", (char*)gssbuff_service_name2.value);
-
+    if(GSS_S_COMPLETE != maj_stat)
+    {
+        gss_release_name(&min_stat, &gssname_service_name);
+        return -1;
+    }
+    printf("name of service %s:\n", (char*)gssbuff_service_name2.value);
+    gss_release_buffer(&min_stat, &gssbuff_service_name2);
+    
     maj_stat = gss_acquire_cred(&min_stat, gssname_service_name,
-                                0, /* no time req */
-                                GSS_C_NULL_OID_SET, /* desired mechanisms, indicate default */
-                                GSS_C_ACCEPT, /* cred usage*/
-                                out_creds,
-                                NULL, NULL
-                                );
+        0,                  /* no time req */
+        GSS_C_NULL_OID_SET, /* desired mechanisms, indicate default */
+        GSS_C_ACCEPT,       /* cred usage */
+        out_creds,
+        NULL, NULL
+    );
     gss_release_name(&min_stat, &gssname_service_name);
     if(GSS_S_COMPLETE != maj_stat)
     {
-        printf("server: gss_acquire_cred failed\n");
+        display_status("server gss_acquire_cred", maj_stat, min_stat);
         return -1;
     }
     return 0;
@@ -203,10 +218,18 @@ int acquire_creds(char *service_name, gss_cred_id_t *out_creds)
 *   
 *   establish_context
 *
-*   establishes a GSSAPI context with the client
-*   returns a context handle and a client name
+*   Purpose:
+*       establishes a GSSAPI context with the client
+*       returns a context handle and a client name
+*   Arguments:
+*       fd                 - file descriptor of TCP socket with client
+*       server_creds       - credentials of server
+*       context            - output context
+*       gssbuf_client_name - output client name 
+*       ret_flags          - output context flags
 *
 *********************************/
+
 int establish_context(int fd, gss_cred_id_t server_creds, 
     gss_ctx_id_t *context,
     gss_buffer_desc *gssbuf_client_name,
@@ -225,18 +248,18 @@ int establish_context(int fd, gss_cred_id_t server_creds,
         }
 
         *context = GSS_C_NO_CONTEXT;
-         
+
         maj_stat = gss_accept_sec_context(&min_stat,
-            context, /* first we supploy GSS_C_NO_CONTEXT */
+            context,              /* first we supply GSS_C_NO_CONTEXT */
             server_creds,
-            &recv_tok, /* token received from client */
+            &recv_tok,            /* token received from client */
             GSS_C_NO_CHANNEL_BINDINGS,
             &gssname_client_name, /* gets the name of the initiator, must be freed with gss_release_name */
             &mech_oid,
-            &send_tok, /* token to send to the peer */
+            &send_tok,            /* token to send to the peer, must be freed with gss_release_buffer */
             ret_flags,
-            NULL, /* ignore time rec */
-            NULL /* ignore delegate_cred_handle */
+            NULL,                 /* ignore time rec */
+            NULL                  /* ignore delegate_cred_handle */
         );
         
         if(GSS_C_NO_BUFFER != &recv_tok)
@@ -246,7 +269,7 @@ int establish_context(int fd, gss_cred_id_t server_creds,
 
         if(GSS_S_COMPLETE != maj_stat && GSS_S_CONTINUE_NEEDED != maj_stat)
         {
-            printf("server: gss_accept_sec_context failed!\n");
+            display_status("server gss_accept_sec_context", maj_stat, min_stat);
             return -1;
         }
         if(GSS_S_CONTINUE_NEEDED)
@@ -269,7 +292,16 @@ int establish_context(int fd, gss_cred_id_t server_creds,
     }
     while(GSS_S_COMPLETE != maj_stat);
 
-    /* TODO: display context flags */
+    printf("server: context established !\n");
+    display_context_flags(*ret_flags);
+
+    maj_stat = gss_display_name(&min_stat, gssname_client_name, gssbuf_client_name, NULL);
+    if(GSS_S_COMPLETE != maj_stat)
+    {
+        gss_release_name(&min_stat, &gssname_client_name);
+        display_status("server gss_display_name", maj_stat, min_stat);
+    }
+    gss_release_name(&min_stat, &gssname_client_name);
 
 
     return 0;
@@ -278,34 +310,25 @@ int establish_context(int fd, gss_cred_id_t server_creds,
 
 /********************************
 *   
-*   sign_server 
+*   sign_message 
 *   
-*   establishes a context with the client
-*   signs the received message with gss_get_mic
-*   and sends it back to the client
+*   Purpose:
+*       signs the received message with gss_get_mic
+*       and sends it back to the client
+*
+*   Arguments:
+*       fd           - file descriptor for communication with the client
+*       server_creds - server credentials
 *
 *********************************/
 
-int sign_server(int fd, gss_cred_id_t server_creds)
+int sign_message(int fd, gss_ctx_id_t context)
 {
-    gss_ctx_id_t context;
-    gss_buffer_desc gssbuff_client_name;
     gss_buffer_desc recv_tok;
     gss_buffer_desc message;
     OM_uint32 maj_stat, min_stat;
-    OM_uint32 ret_flags = 0;
+    
     int conf_state = 0;
-
-    if(-1 == establish_context(fd, server_creds, &context,
-        &gssbuff_client_name, &ret_flags))
-    {
-        printf("server: couldn't establish context\n");
-        return -1;
-    }
-
-    printf("server: context established with: %s\n", (char*)gssbuff_client_name.value);
-
-    gss_release_buffer(&min_stat, &gssbuff_client_name);
 
     if(-1 == recv_token(fd, &recv_tok))
     {
@@ -358,8 +381,6 @@ int sign_server(int fd, gss_cred_id_t server_creds)
         gss_delete_sec_context(&min_stat, &context, NULL);
     }
     gss_release_buffer(&min_stat, &recv_tok);
-    
-    gss_delete_sec_context(&min_stat, &context, NULL);
 
     return 0;
 
@@ -368,9 +389,16 @@ int sign_server(int fd, gss_cred_id_t server_creds)
 int talk_to_client(int port, char *service, char *mech)
 {
     gss_cred_id_t server_creds;
+    gss_ctx_id_t context;
+    gss_buffer_desc gssbuff_client_name;
+    OM_uint32 maj_stat, min_stat;
+    OM_uint32 ret_flags = 0;
 
     int sock = 0;
     int cfd = 0;
+
+    (void)mech;
+    (void)maj_stat;
 
     if(-1 == acquire_creds(service, &server_creds))
     {
@@ -386,11 +414,22 @@ int talk_to_client(int port, char *service, char *mech)
     }
 
     cfd = receive_connection(sock);
-    if(-1 == sign_server(cfd, server_creds))
+    if(-1 == establish_context(cfd, server_creds, &context,
+        &gssbuff_client_name, &ret_flags))
+    {
+        printf("server: couldn't establish context\n");
+        return -1;
+    }
+    printf("server: context established with: %s\n", (char*)gssbuff_client_name.value);
+    gss_release_buffer(&min_stat, &gssbuff_client_name);
+
+    if(-1 == sign_message(cfd, context))
     {
         printf("server: talk_to_client failed\n");
         return -1;
     }
+
+    gss_delete_sec_context(&min_stat, &context, NULL);
 
     return 0;
 }
@@ -410,8 +449,6 @@ int main(int argc, char **argv)
     {
         return -1;
     }
-    
-
 
     return 0;
 
