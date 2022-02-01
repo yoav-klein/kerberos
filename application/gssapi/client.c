@@ -322,11 +322,13 @@ int call_server(char *host, char *port, char *service, char *message)
 	if(GSS_S_NO_CONTEXT == maj_stat)
 	{
 		printf("context could not be accessed\n");
+		gss_delete_sec_context(&min_stat, &context, GSS_C_NO_BUFFER);
 		return -1;
 	}
 	if(GSS_S_COMPLETE != maj_stat)
 	{
 		display_status("client gss_inquire_context", maj_stat, min_stat);
+		gss_delete_sec_context(&min_stat, &context, GSS_C_NO_BUFFER);
 		return -1;
 	}
 
@@ -343,6 +345,9 @@ int call_server(char *host, char *port, char *service, char *message)
 	if(GSS_S_COMPLETE != maj_stat)
 	{
 		display_status("client gss_wrap_size_limit", maj_stat, min_stat);
+		gss_release_name(&min_stat, &src_name);
+		gss_release_name(&min_stat, &target_name);
+		gss_delete_sec_context(&min_stat, &context, GSS_C_NO_BUFFER);
 		return -1;
 	}
 
@@ -359,6 +364,9 @@ int call_server(char *host, char *port, char *service, char *message)
 	if(GSS_S_COMPLETE != maj_stat)
 	{
 		display_status("client gss_wrap_size_limit", maj_stat, min_stat);
+		gss_release_name(&min_stat, &src_name);
+		gss_release_name(&min_stat, &target_name);
+		gss_delete_sec_context(&min_stat, &context, GSS_C_NO_BUFFER);
 		return -1;
 	}
 
@@ -369,6 +377,9 @@ int call_server(char *host, char *port, char *service, char *message)
 	if(GSS_S_COMPLETE != maj_stat)
 	{
 		display_status("client gss_display_name", maj_stat, min_stat);
+		gss_release_name(&min_stat, &src_name);
+		gss_release_name(&min_stat, &target_name);
+		gss_delete_sec_context(&min_stat, &context, GSS_C_NO_BUFFER);
 		return -1;
 	}
 
@@ -376,6 +387,10 @@ int call_server(char *host, char *port, char *service, char *message)
 	if(GSS_S_COMPLETE != maj_stat)
 	{
 		display_status("client gss_display_name", maj_stat, min_stat);
+		gss_release_name(&min_stat, &src_name);
+		gss_release_name(&min_stat, &target_name);
+		gss_release_buffer(&min_stat, &sname);
+		gss_delete_sec_context(&min_stat, &context, GSS_C_NO_BUFFER);
 		return -1;
 	}
 
