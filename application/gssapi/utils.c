@@ -4,6 +4,89 @@
 #include <gssapi.h> /* gss_buffer_desc */
 #include <unistd.h> /* read */
 #include <stdlib.h> /* malloc */
+#include <gssapi.h> /* GSS_C_DELEG_FLAG */
+
+
+/*****************************
+*
+*   display_context_flags
+*
+*   takes a flags integer and displays the flags set in it
+*
+********************************/
+void display_context_flags(int ret_flags)
+{
+    if(ret_flags & GSS_C_DELEG_FLAG)
+    {
+        printf("context flag: GSS_C_DELEG_FLAG\n");
+    }
+    if(ret_flags & GSS_C_MUTUAL_FLAG)
+    {
+        printf("context flag: GSS_C_MUTUAL_FLAG\n");
+    }
+    if(ret_flags & GSS_C_REPLAY_FLAG)
+    {
+        printf("context flag: GSS_C_REPLAY_FLAG\n");
+    }
+    if(ret_flags & GSS_C_SEQUENCE_FLAG)
+    {
+        printf("context flag: GSS_C_SEQUENCE_FLAG\n");
+    }
+    if(ret_flags & GSS_C_CONF_FLAG)
+    {
+        printf("context flag: GSS_C_CONF_FLAG\n");
+    }
+    if(ret_flags & GSS_C_INTEG_FLAG)
+    {
+        printf("context flag: GSS_C_INTEG_FLAG\n");
+    }
+    
+}
+
+
+void display_status_aux(char *msg, OM_uint32 status_val, int status_type)
+{
+    OM_uint32 maj_stat, min_stat;
+    gss_buffer_desc status_message;
+    unsigned int should_continue = 0;
+
+    do
+    {
+        maj_stat = gss_display_status(&min_stat, status_val,
+            status_type, /* major or minor (GSS or MECH) */
+            GSS_C_NO_OID,
+            &should_continue, /* outputs whether or not there are more to extract */
+            &status_message /* outputs the status message */
+        );
+        if(GSS_S_COMPLETE != maj_stat)
+        {
+            printf("gss_display_status failed ! %s\n", msg);
+            return;
+        }
+        if(status_message.length > 0)
+        {
+            printf("GSS-API ERROR: %s: %s", msg, (char*)status_message.value);
+        }
+        gss_release_buffer(&min_stat, &status_message);
+    }
+    while(should_continue);
+}
+
+/**************************************
+*
+*   display_status
+*
+*   takes a major and minor status and prints
+*   an informative message
+*
+*
+***************************************/
+void display_status(char *msg, OM_uint32 maj_stat, OM_uint32 min_stat)
+{
+    display_status_aux(msg, maj_stat, GSS_C_GSS_CODE);
+    display_status_aux(msg, min_stat, GSS_C_MECH_CODE);
+}
+
 
 static int read_all(int fd, char *buffer, size_t len)
 {

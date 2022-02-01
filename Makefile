@@ -19,18 +19,22 @@ build-docker: pre-build
 
 .PHONY: build-applications
 build-applications:
-	@echo -e $(GREEN)"=== Building application"$(RESET)
-	@cd application/my-code; make
 	@if [ ! -d bin ]; then mkdir bin; fi
-	@cp application/my-code/server bin
-	@cp application/my-code/client bin
+	@echo -e $(GREEN)"=== Building krb5-api"$(RESET)
+	@cd application/krb5-api; make
+	@cp application/krb5-api/server bin/server/krb5-api
+	@cp application/krb5-api/client bin/krb5-api
+	@echo -e $(GREEN)"=== Building GSS-API"$(RESET)
+	@cd application/gssapi; make
+	@cp application/gssapi/server bin/gssapi
+	@cp application/gssapi/client bin/gssapi
 
 .PHONY: init
 init: build-all
 	@echo -e $(GREEN)"=== Starting docker-compose containers"$(RESET)
 	@docker-compose up -d
-	$(SCRIPTS)/init-kdc.sh
-	$(SCRIPTS)/copy-binaries.sh
+	@$(SCRIPTS)/init-kdc.sh
+	@$(SCRIPTS)/copy-binaries.sh
 
 .PHONY: build-all	
 build-all: build-docker build-applications

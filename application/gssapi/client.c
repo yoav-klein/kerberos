@@ -19,10 +19,7 @@
 *
 ***********************************************************/
 
-
-
 #define _POSIX_C_SOURCE 200112
-
 
 #include <stdlib.h> /* atoi */
 #include <getopt.h> /* getopt */
@@ -38,19 +35,19 @@
 
 #include "utils.h"
 
-/*
-
-NOTES
-
-1. Didn't use OID stuff here
-2. How is the service name received? what format?s
-
-*/
+/*************
+*
+* NOTES
+*
+*1. Didn't use OID stuff here
+*2. How is the service name received? what format?s
+*
+********************/
 
 
 void usage()
 {
-	printf("client [-p <port>] [-d] [-m <mech>] host service [-f] message\n");
+	printf("client -p <port> [-d] [-m <mech>] host service [-f] message\n");
 }
 
 void parse_args(int argc, char **argv, char **port, int *delegate, char **mech, char **host, char **service, char **msg)
@@ -86,7 +83,11 @@ void parse_args(int argc, char **argv, char **port, int *delegate, char **mech, 
 		usage();
 		exit(1);
 	}
-	
+	if(!*port)
+	{
+		usage();
+		exit(1);
+	}
 	*host = argv[optind++];
 	*service = argv[optind++];
 	*msg = argv[optind++];
@@ -147,16 +148,17 @@ int connect_to_server(char *host, char *port)
 
 /***************
 *	establish_context
-*
-*	Establishes a GSS-API context  with a specified service and returns 
-*	a context handle
+*	
+*	Purpose:
+*		Establishes a GSS-API context  with a specified service and returns 
+*		a context handle
 *
 *	Arguments:
-*	fd           -  file descriptor of a TCP socket of an opened connection with the server
-*	service_name - the name of the service
-*	mech_type    - mechanism type. should be GSS_C_NULL_OID
-*	ctx          - output parameter - returned context
-*	ret_flags    - returned flags from init_sec_context
+*		fd           -  file descriptor of a TCP socket of an opened connection with the server
+*		service_name - the name of the service
+*		mech_type    - mechanism type. should be GSS_C_NULL_OID
+*		ctx          - output parameter - returned context
+*		ret_flags    - returned flags from init_sec_context
 *
 *	returns -1 on error
 *
@@ -180,9 +182,8 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
      
 	if(maj_stat != GSS_S_COMPLETE)
 	{
-	printf("gss_import_name: Something is wrong\n");
-	/* TODO: gss_display_status */
-	return -1;
+		display_status("client gss_import_name", maj_stat, min_stat);
+		return -1;
 	}
 	
 	recv_tok_ptr = GSS_C_NO_BUFFER;
@@ -197,10 +198,10 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 			mech_type,
 			GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG,
 			0, /* no time req */
-			NULL, /* no channel binding */
-			recv_tok_ptr, /* this is what we get from peer, first it's null */
-			NULL, /* ignore mech type */
-			&send_tok, /* this will be sent to the peer */
+			GSS_C_NO_CHANNEL_BINDINGS,
+			recv_tok_ptr, /* this is what we get from peer, on first call it's null */
+			NULL,         /* ignore mech type */
+			&send_tok,    /* this will be sent to the peer, must be released with gss_release_buffer */
 			ret_flags,
 			NULL /* ignore time rec */
 			);
@@ -217,7 +218,7 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 		/* if not one of these, an error occured */
 		if((GSS_S_COMPLETE != maj_stat) && (GSS_S_CONTINUE_NEEDED != maj_stat))
 		{
-			printf("initializing context failed\n");
+			display_status("client gss_init_sec_context", maj_stat, min_stat);
 			gss_release_name(&min_stat, &target_name);
 			return -1;
 		}
@@ -228,6 +229,7 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 			{
 				gss_release_name(&min_stat, &target_name);
 				gss_release_buffer(&min_stat, &send_tok);
+				gss_delete_sec_context(&min_stat, ctx, GSS_C_NO_BUFFER);
 				return -1;
 			}
 			gss_release_buffer(&min_stat, &send_tok);
@@ -246,6 +248,7 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
     }
     while(GSS_S_CONTINUE_NEEDED == maj_stat);
 
+	gss_release_name(&min_stat, &target_name);
     return 0;
 }
 
@@ -257,6 +260,23 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 	2. 
 
 */
+
+/**************************************************
+*
+*	call_server
+*	
+*	Purpose:
+*		main part of the program. establishes a context, 
+*		sends a message to the server, and retrieves back 
+*		a verification token.
+*	
+*	Arguments:
+*		host     - the host name of the service. resolved with DNS
+*		service  - port number/name, for example ftp for 21
+*		message  - to be sent to the server
+*
+***************************************************/
+
 int call_server(char *host, char *port, char *service, char *message)
 {
 	int res = 0;
@@ -275,68 +295,70 @@ int call_server(char *host, char *port, char *service, char *message)
 	OM_uint32 max_input_size = 0;
 	gss_OID mechanism, name_type;
 
-	sock = connect_to_server(host, service);
+	sock = connect_to_server(host, port);
 	if(-1 == sock)
 	{
 		printf("failed to connect to server\n");
-		exit(1);
+		return -1;
 	}
 	
 	res = establish_context(sock, service, &context, GSS_C_NULL_OID, &ret_flags);
 	if(-1 == res)
 	{
 		printf("context establishment failed\n");
-		exit(1);
+		return -1;
 	}
 	
 	/* get context information */
 	maj_stat = gss_inquire_context(&min_stat, context, 
-		&src_name, /* name of initiator. must be freed with free_name */
-		&target_name, /* name of the acceptor. must be freed with free_name */
-		&lifetime, /* lifetime of context */
-		&mechanism, /* mechanism of the context. pointer to static storage - don't attempt to free */
+		&src_name,      /* name of initiator. must be freed with gss_free_name */
+		&target_name,   /* name of the acceptor. must be freed with gss_free_name */
+		&lifetime,      /* lifetime of context */
+		&mechanism,     /* mechanism of the context. pointer to static storage - don't attempt to free */
 		&context_flags, /* flags.  */
-		NULL, /* whether or not this application is the initiator. not needed */
-		&is_open /* whether or not the context is fully established */
+		NULL,           /* whether or not this application is the initiator. not needed */
+		&is_open        /* whether or not the context is fully established */
 	);
 	if(GSS_S_NO_CONTEXT == maj_stat)
 	{
 		printf("context could not be accessed\n");
 		return -1;
 	}
-	if(!(GSS_S_COMPLETE == maj_stat))
+	if(GSS_S_COMPLETE != maj_stat)
 	{
-		printf("gss_inquire_contetx failed\n");
+		display_status("client gss_inquire_context", maj_stat, min_stat);
 		return -1;
 	}
 
+	display_context_flags(context_flags);
+	
 	/* get wrap size limit without confidentiality */
 	maj_stat = gss_wrap_size_limit(&min_stat, context,
 		0, /* NOT required confidentiality */
 		GSS_C_QOP_DEFAULT, /* default QOP of underlying mechanism */
 		req_output_size,
 		&max_input_size
-		);
+	);
 	
 	if(GSS_S_COMPLETE != maj_stat)
 	{
-		printf("gss_wrap_size_limit failed\n");
+		display_status("client gss_wrap_size_limit", maj_stat, min_stat);
 		return -1;
 	}
 
-	printf("max input size without confidentiality: %d\n", max_input_size);
+	printf("client: max input size without confidentiality: %d\n", max_input_size);
 
 	/* get wrap size limit with confidentiality */
 	maj_stat = gss_wrap_size_limit(&min_stat, context,
-		1, /* required confidentiality */
+		1,                 /* required confidentiality */
 		GSS_C_QOP_DEFAULT, /* default QOP of underlying mechanism */
 		req_output_size,
 		&max_input_size
-		);
+	);
 	
 	if(GSS_S_COMPLETE != maj_stat)
 	{
-		printf("gss_wrap_size_limit failed\n");
+		display_status("client gss_wrap_size_limit", maj_stat, min_stat);
 		return -1;
 	}
 
@@ -346,14 +368,14 @@ int call_server(char *host, char *port, char *service, char *message)
 	maj_stat = gss_display_name(&min_stat, src_name, &sname, &name_type);
 	if(GSS_S_COMPLETE != maj_stat)
 	{
-		printf("gss_display_name failed\n");
+		display_status("client gss_display_name", maj_stat, min_stat);
 		return -1;
 	}
 
 	maj_stat = gss_display_name(&min_stat, target_name, &tname, &name_type);
 	if(GSS_S_COMPLETE != maj_stat)
 	{
-		printf("gss_display_name failed\n");
+		display_status("client gss_display_name", maj_stat, min_stat);
 		return -1;
 	}
 
@@ -362,7 +384,8 @@ int call_server(char *host, char *port, char *service, char *message)
 			(char*)tname.value,
 			lifetime,
 			context_flags,
-			(is_open)? "open": "close");
+			(is_open)? "open": "close"
+	);
 	
 	/* release resources */
 	gss_release_name(&min_stat, &src_name);
@@ -392,10 +415,10 @@ int call_server(char *host, char *port, char *service, char *message)
 		&in_buff,
 		&conf_state, /* output parameter indicating whether or not confidentiality applied */
 		&out_buffer /* output to send to the peer */
-		);
+	);
 	if(GSS_S_COMPLETE != maj_stat)
 	{
-		printf("gss_wrap failed\n");
+		display_status("client gss_wrap", maj_stat, min_stat);
 		return -1;
 	}
 
@@ -408,6 +431,7 @@ int call_server(char *host, char *port, char *service, char *message)
 	if(-1 == send_token(sock, &out_buffer))
 	{
 		printf("couldn't send message to peer\n");
+		gss_release_buffer(&min_stat, &out_buffer);
 		return -1;
 	}
 	gss_release_buffer(&min_stat, &out_buffer);
@@ -416,6 +440,7 @@ int call_server(char *host, char *port, char *service, char *message)
 	if(-1 == recv_token(sock, &out_buffer))
 	{
 		printf("couldn't receive verification message from peer\n");
+		gss_delete_sec_context(&min_stat, &context, GSS_C_NO_BUFFER);
 		return -1;
 	}
 
@@ -424,13 +449,12 @@ int call_server(char *host, char *port, char *service, char *message)
 		&in_buff,
 		&out_buffer,
 		NULL /* QOP of MIC - not interested */
-		);
+	);
 	if(GSS_S_COMPLETE != maj_stat)
 	{
-		printf("gss_verify_mic failed\n");
+		display_status("client gss_verify_mic", maj_stat, min_stat);
 		return -1;
 	}
-
 	gss_release_buffer(&min_stat, &out_buffer);
 
 	maj_stat = gss_delete_sec_context(&min_stat, &context, GSS_C_NO_BUFFER);
@@ -447,16 +471,14 @@ int call_server(char *host, char *port, char *service, char *message)
 
 int main(int argc, char **argv)
 {
-	char *port = "8080";
 	int delegate = 0;
 	char *mech = NULL;
-	char *file = NULL;
 	char *host = NULL;
 	char *service = NULL;
+	char *port = NULL;
 	char *message = NULL;
 	parse_args(argc, argv, &port, &delegate, &mech, &host, &service, &message);
-	printf("port: %s, delegate: %d, mech: %s, file: %s\n", port, delegate, mech, file);
-	printf("host: %s, service: %s, message: %s\n", host, service, message);
+	printf("host: %s, port: %s, service: %s, mech: %s, message: %s\n", host, port, service, mech, message);
 	
 	if(-1 == call_server(host, port, service, "Give me your file\n"))
 	{
