@@ -4,6 +4,9 @@ CC=gcc
 CFLAGS=-Wall -Wextra -pedantic-errors -ansi
 LDFLAGS=$(KRB5LIBS)
 
+.PHONY: all
+all: server client
+
 server: server.c utils.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 

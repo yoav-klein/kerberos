@@ -172,7 +172,7 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 	gss_name_t target_name;
 	OM_uint32 maj_stat, min_stat, lifetime;
 	
-	
+	(void)lifetime;
 	/* import the service name into target_name */
 	gss_name.value = service_name;
 	gss_name.length = strlen(gss_name.value) + 1;
@@ -257,7 +257,6 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 	questions
 
 	1. context_flags vs ret_flags? are the same?
-	2. 
 
 */
 
