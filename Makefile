@@ -19,18 +19,17 @@ build-docker: pre-build
 
 .PHONY: build-applications
 build-applications:
-	@if [ ! -d bin ]; then mkdir bin; fi
 	@echo -e $(GREEN)"=== Building krb5-api"$(RESET)
 	@cd application/krb5-api; make
-	@cp application/krb5-api/server bin/server/krb5-api
-	@cp application/krb5-api/client bin/krb5-api
 	@echo -e $(GREEN)"=== Building GSS-API"$(RESET)
 	@cd application/gssapi; make
-	@cp application/gssapi/server bin/gssapi
-	@cp application/gssapi/client bin/gssapi
+	@$(SCRIPTS)/create-deployment.sh
+
+.PHONY: start-containers
+	@docker-compose up -d
 
 .PHONY: init
-init: build-all
+init: start-containers
 	@echo -e $(GREEN)"=== Starting docker-compose containers"$(RESET)
 	@docker-compose up -d
 	@$(SCRIPTS)/init-kdc.sh
@@ -49,5 +48,6 @@ clean:
 	@echo -e $(GREEN)"=== Cleaning.."$(RESET)
 	@docker-compose down
 	@$(SCRIPTS)/docker-network.sh destroy
-	@cd application/my-code; make clean
+	@cd application/krb5-api; make clean
+	@cd application/gssapi; make clean
 	@rm bin/ -rf || echo "hello" > /dev/null

@@ -12,7 +12,6 @@ LDFLAGS=$(KRB5LIBS)
 .PHONY: all
 all: client server
 
-
 client: client.c
 	@echo -e $(GREEN)"=== Building client ==="$(RESET)
 	@$(CC) $(CFLAGS)  -o $@ $^ $(LDFLAGS)
