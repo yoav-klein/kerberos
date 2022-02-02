@@ -78,7 +78,7 @@ void parse_args(int argc, char **argv, char **port, int *delegate, char **mech, 
 		}
 	}
 	
-	if(argc - optind < 2)
+	if(argc - optind < 3)
 	{
 		usage();
 		exit(1);
