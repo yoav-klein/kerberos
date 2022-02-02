@@ -146,7 +146,8 @@ int connect_to_server(char *host, char *port)
 	
 }
 
-/***************
+/*********************************************
+*
 *	establish_context
 *	
 *	Purpose:
@@ -158,19 +159,19 @@ int connect_to_server(char *host, char *port)
 *		service_name - the name of the service
 *		mech_type    - mechanism type. should be GSS_C_NULL_OID
 *		ctx          - output parameter - returned context
-*		ret_flags    - returned flags from init_sec_context
-*
+*		
 *	returns -1 on error
 *
-***************/
+***************************************************/
 
 
 int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx, 
-				const gss_OID mech_type, OM_uint32 *ret_flags)
+				const gss_OID mech_type)
 {
 	gss_buffer_desc gss_name, send_tok, recv_tok, *recv_tok_ptr;
 	gss_name_t target_name;
 	OM_uint32 maj_stat, min_stat, lifetime;
+	OM_uint32 ret_flags = 0;
 	
 	(void)lifetime;
 	/* import the service name into target_name */
@@ -202,7 +203,7 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 			recv_tok_ptr, /* this is what we get from peer, on first call it's null */
 			NULL,         /* ignore mech type */
 			&send_tok,    /* this will be sent to the peer, must be released with gss_release_buffer */
-			ret_flags,
+			&ret_flags,
 			NULL /* ignore time rec */
 			);
 		if(NULL == ctx)
@@ -224,7 +225,7 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 		}
 		if(send_tok.length > 0)
 		{
-			printf("Sending token to server\n");
+			printf("client: Sending token to server\n");
 			if(-1 == send_token(fd, &send_tok))
 			{
 				gss_release_name(&min_stat, &target_name);
@@ -252,13 +253,6 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
     return 0;
 }
 
-
-/*
-	questions
-
-	1. context_flags vs ret_flags? are the same?
-
-*/
 
 /**************************************************
 *
@@ -289,7 +283,7 @@ int call_server(char *host, char *port, char *service, char *message)
 	gss_buffer_desc sname, tname;
 	gss_buffer_desc in_buff, out_buffer;
 	OM_uint32 req_output_size = 1012; /* not sure why, this is TCP.. */
-	OM_uint32 ret_flags, lifetime, context_flags;
+	OM_uint32 lifetime, context_flags;
 	OM_uint32 maj_stat, min_stat;
 	OM_uint32 max_input_size = 0;
 	gss_OID mechanism, name_type;
@@ -301,7 +295,7 @@ int call_server(char *host, char *port, char *service, char *message)
 		return -1;
 	}
 	
-	res = establish_context(sock, service, &context, GSS_C_NULL_OID, &ret_flags);
+	res = establish_context(sock, service, &context, GSS_C_NULL_OID);
 	if(-1 == res)
 	{
 		printf("context establishment failed\n");
@@ -331,6 +325,7 @@ int call_server(char *host, char *port, char *service, char *message)
 		return -1;
 	}
 
+	printf("client: context flags:\n");
 	display_context_flags(context_flags);
 	
 	/* get wrap size limit without confidentiality */
@@ -369,7 +364,7 @@ int call_server(char *host, char *port, char *service, char *message)
 		return -1;
 	}
 
-	printf("max input size with confidentiality: %d\n", max_input_size);
+	printf("client: max input size with confidentiality: %d\n", max_input_size);
 
 	/* get names of server and client */
 	maj_stat = gss_display_name(&min_stat, src_name, &sname, &name_type);
@@ -393,11 +388,10 @@ int call_server(char *host, char *port, char *service, char *message)
 		return -1;
 	}
 
-	printf("%s to %s, lifetime: %u, flags: %x, %s\n",
+	printf("client: %s to %s, lifetime: %u, %s\n",
 			(char*)sname.value,
 			(char*)tname.value,
 			lifetime,
-			context_flags,
 			(is_open)? "open": "close"
 	);
 	
@@ -408,7 +402,7 @@ int call_server(char *host, char *port, char *service, char *message)
 	gss_release_buffer(&min_stat, &tname);
 
 	/* find out if confidentiality is supported */
-	if(ret_flags & GSS_C_CONF_FLAG)
+	if(context_flags & GSS_C_CONF_FLAG)
 	{
 		conf_req_flag = 1;
 	}
@@ -438,7 +432,7 @@ int call_server(char *host, char *port, char *service, char *message)
 
 	if(!conf_state)
 	{
-		printf("Warning! No confidentiality provided !\n");
+		printf("client: Warning! No confidentiality provided !\n");
 	}
 
 	/* send to the server */
@@ -494,7 +488,7 @@ int main(int argc, char **argv)
 	parse_args(argc, argv, &port, &delegate, &mech, &host, &service, &message);
 	printf("host: %s, port: %s, service: %s, mech: %s, message: %s\n", host, port, service, mech, message);
 	
-	if(-1 == call_server(host, port, service, "Give me your file\n"))
+	if(-1 == call_server(host, port, service, message))
 	{
 		printf("call server failed !\n");
 

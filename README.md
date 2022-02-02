@@ -1,14 +1,12 @@
 # Kerberos
 ---
 
-This repository contains a demo Kerberos cluster, which includes a KDC and a client application
-that authenticates to a server application using Kerberos tickets.
+This repository contains a demo Kerberos cluster, which includes a KDC and a client application that authenticates to a server application using Kerberos tickets.
 
 ## Docker Infrastructure
 ---
 The Kerberos cluster is run in Docker containers.
-We have one container which is the KDC of the cluster, and two containers which are the 
-server and client.
+We have one container which is the KDC of the cluster, and two containers which are the server and client.
  
 Theses containers are spawn using a `docker-compose.yaml` file in the root of the project.
 
@@ -32,13 +30,13 @@ for a keytab.
 
 This is all done by the `init-kdc.sh` script.
 
-## Application
+## Applications
 ---
-We have a demo application which is a little bit more elegant form of the reference code from the MIT `krb5` repository, also included here.
-There is a `server` running in the `krb5-server` container and a `client` running in the `krb5-client` container.
+We have 2 demo applications, one using the Kerveros API directly, and one uses the more generic GSS-API.
 
-The server opens a TCP socket and waits for connection, and once arrives, authenticates the user.
-The client connects to that same port and sends the ticket it got from the TGS.
+The krb5 application is a little bit more elegant form of the reference code from the MIT `krb5` repository, also included here.
+
+The server applications are copied to the `krb5-server` container, and the client applications are copied to the `krb5-client` container.
 
 
 ## Usage
@@ -59,8 +57,6 @@ This will build the `server` and `client` applications and put them in the `bin`
 $ make build-application
 ```
 
-
-
 Also, you can run
 ```
 $ make build-all
@@ -71,7 +67,6 @@ that will do all the above steps.
 ### Initialize the infrastructure
 This will initialize the KDC with the required principals, create a keytab and copy it to the `krb5-server` container,
 and also copy the client and server applications to the containers.
-
 
 ```
 $ make init

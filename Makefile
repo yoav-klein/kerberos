@@ -35,6 +35,11 @@ init: start-containers
 	@$(SCRIPTS)/init-kdc.sh
 	@$(SCRIPTS)/copy-binaries.sh
 
+.PHONY: update
+update: build-applications
+	@echo -e $(GREEN)"=== Updating applications in containers"$(RESET)
+	@$(SCRIPTS)/copy-binaries.sh
+
 .PHONY: build-all	
 build-all: build-docker build-applications
 	@cd images; docker-compose build
