@@ -38,6 +38,16 @@ The krb5 application is a little bit more elegant form of the reference code fro
 
 The server applications are copied to the `krb5-server` container, and the client applications are copied to the `krb5-client` container.
 
+## SSH
+---
+We also use GSSAPI authentication to connect with SSH from the client container to the server container. This requires the following:
+
+### Server
+We install `openssh-server` in the image, create a user named `yoav` (which corresponds to this user in the KDC), and set the required values in the `/etc/ssh/sshd_config` file.
+
+### Client
+Installing `openssh-client` in the image, setting `StrictHostKeyCheck no` in the `/etc/ssh/ssh_config` so we won't have to accept the host key in the client.
+
 
 ## Usage
 ---

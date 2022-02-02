@@ -34,8 +34,17 @@ test_gssapi() {
     docker exec ${CLIENT_CONTAINER} /bin/bash -c "/client/gss-client -p ${PORT} ${SERVICE_HOST} ${SERVICE_NAME}@${SERVICE_HOST} \"This is my message !\""
 }
 
+test_ssh() {
+    echo -e "${GREEN}=== Connecting with SSH from client to server using GSSAPI${RESET}"
+    echo -e "${GREEN}Running ssh server in server container${RESET}"
+    docker exec ${SERVICE_CONTAINER} /bin/bash -c "service ssh start"
+    echo -e "${GREEN}Connecting from client container${RESET}"
+    docker exec ${CLIENT_CONTAINER} /bin/bash -c "ssh yoav@${SERVICE_HOST} hostname"
+}
+
 init_client
 test_krb5api
 test_gssapi
+test_ssh
 
 echo -e "${GREEN}=== TESTS SUCCEED${RESET}"
