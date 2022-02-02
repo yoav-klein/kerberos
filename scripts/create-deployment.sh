@@ -32,8 +32,8 @@ else
     fi
 fi
 
-cp application/krb5-api/server bin/server/krb-server
-cp application/krb5-api/client bin/client/krb-client
+cp application/krb5-api/server bin/server/krb5-server
+cp application/krb5-api/client bin/client/krb5-client
 
 cp application/gssapi/server bin/server/gss-server
 cp application/gssapi/client bin/client/gss-client

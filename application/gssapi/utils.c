@@ -65,7 +65,11 @@ void display_status_aux(char *msg, OM_uint32 status_val, int status_type)
         }
         if(status_message.length > 0)
         {
-            printf("GSS-API ERROR: %s: %s", msg, (char*)status_message.value);
+            printf("GSS-API ERROR (%s): %s: %s\n", 
+                status_type == GSS_C_GSS_CODE ? "GSS-API" : "MECHANISM",    
+                msg, 
+                (char*)status_message.value
+            );
         }
         gss_release_buffer(&min_stat, &status_message);
     }

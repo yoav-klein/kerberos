@@ -27,6 +27,7 @@
 #include <sys/types.h>   /* socket */
 #include <sys/socket.h> /* socket */
 #include <arpa/inet.h>  /* INADDR_ANY */
+#include <unistd.h> /* close */
 
 #include "utils.h"
 
@@ -124,8 +125,6 @@ int bind_socket(int sockfd, char* addr, int port)
 
     return 0;
 }
-
-
 
 int receive_connection(int sockfd)
 {
@@ -302,7 +301,7 @@ int establish_context(int fd, gss_cred_id_t server_creds,
         display_status("server gss_display_name", maj_stat, min_stat);
     }
     gss_release_name(&min_stat, &gssname_client_name);
-
+    gss_release_cred(&min_stat, &server_creds);
 
     return 0;
 }
@@ -373,7 +372,7 @@ int sign_message(int fd, gss_ctx_id_t context)
         printf("server: gss_get_mic failed\n");
         gss_delete_sec_context(&min_stat ,&context, NULL);
     }
-
+    
     if(-1 == send_token(fd, &recv_tok))
     {
         printf("server: couldn't send verification message to client\n");
@@ -431,6 +430,7 @@ int talk_to_client(int port, char *service, char *mech)
 
     gss_delete_sec_context(&min_stat, &context, NULL);
 
+    close(cfd);
     return 0;
 }
 

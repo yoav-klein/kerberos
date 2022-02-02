@@ -142,6 +142,8 @@ int connect_to_server(char *host, char *port)
 	    }
 	}
 	
+	freeaddrinfo(res_addresses);
+
 	return sock;
 	
 }
@@ -301,6 +303,7 @@ int call_server(char *host, char *port, char *service, char *message)
 		printf("context establishment failed\n");
 		return -1;
 	}
+
 	
 	/* get context information */
 	maj_stat = gss_inquire_context(&min_stat, context, 
@@ -461,8 +464,10 @@ int call_server(char *host, char *port, char *service, char *message)
 	if(GSS_S_COMPLETE != maj_stat)
 	{
 		display_status("client gss_verify_mic", maj_stat, min_stat);
+		close(sock);
 		return -1;
 	}
+	
 	gss_release_buffer(&min_stat, &out_buffer);
 
 	maj_stat = gss_delete_sec_context(&min_stat, &context, GSS_C_NO_BUFFER);

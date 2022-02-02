@@ -26,14 +26,22 @@ build-applications:
 	@$(SCRIPTS)/create-deployment.sh
 
 .PHONY: start-containers
+start-containers: 
 	@docker-compose up -d
 
 .PHONY: init
 init: start-containers
 	@echo -e $(GREEN)"=== Starting docker-compose containers"$(RESET)
-	@docker-compose up -d
 	@$(SCRIPTS)/init-kdc.sh
 	@$(SCRIPTS)/copy-binaries.sh
+
+.PHONY: stop-containers
+stop-containers:
+	@docker-compose down
+
+.PHONY: restart
+restart: stop-containers start-containers
+	@echo  -e $(GREEN)"=== Restarted"$(RESET)
 
 .PHONY: update
 update: build-applications

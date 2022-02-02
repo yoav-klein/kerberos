@@ -26,3 +26,21 @@ Steps 5 + 6 are optional, and are used to make sure that the server got the mess
 3. Unwraps the message it received from the client
 4. Creates a MIC for the message
 5. Sends the MIC to the client
+
+
+## Some technical details
+
+### Credentials
+For the server, the `gss_acquire_creds` function is the one that accesses the keytab and takes the key of the service name.
+For the client, you need to run `kinit` before running.
+
+### Context establishment
+The `gss_init_sec_context` and `gss_accept_sec_context` functions are responsible for establishing
+a security context between the parties, in which _authentication_ takes place. In this example, 
+if you break after `gss_init_sec_context` and look at the packets passed in Wireshark, you'll be able to see the 
+TGS-REQ and TGS-REP messages in which the client contacts the KDC to ask for a ticket for the service.
+
+### Service Princiapl Name
+When running the `server`, you need to pass in a `service` argument. We pass in just `service` (not `<service>@<host>`), and this string is passed in to `gss_import_name` with the _name type_ `GSS_C_NT_HOSTBASED_SERVICE,` which makes it `<service>@<host>`.
+When running the client, we pass in a `host` and `service`. Here, for the `service` we need to pass `<service>@<host>` 
+such as `host@krb5-service.myexample.com` - as it is in the KDC.
