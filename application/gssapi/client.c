@@ -50,7 +50,12 @@ void usage()
 	printf("client -p <port> [-d] [-m <mech>] host service [-f] message\n");
 }
 
-void parse_args(int argc, char **argv, char **port, int *delegate, char **mech, char **host, char **service, char **msg)
+void parse_args(int argc, char **argv, char **port, 
+	int *delegate, 
+	char **mech, 
+	char **host, 
+	char **service, 
+	char **msg)
 {
 	extern int opterr, optind;
 	extern char *optarg;
@@ -61,6 +66,7 @@ void parse_args(int argc, char **argv, char **port, int *delegate, char **mech, 
 		switch(ch)
 		{
 			case 'p':
+				/* port is used with getaddrinfo so we need it as char* */
 				*port = optarg;
 				break;
 			case 'd':
@@ -85,6 +91,7 @@ void parse_args(int argc, char **argv, char **port, int *delegate, char **mech, 
 	}
 	if(!*port)
 	{
+		printf("You didn't provide a port\n");
 		usage();
 		exit(1);
 	}
@@ -255,6 +262,25 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
     return 0;
 }
 
+/**************************************************
+*
+*	translate_mech_to_oid
+*
+*	Purpose:
+*		translate a human-readalbe mechanism name
+*		to an gss_OID object
+*
+*	Arguments:
+*		mech   - the mechanism name
+*		oid    - the resulted oid
+*
+**************************************************/
+
+int translate_mech_to_oid(const char *mech, gss_OID *res_oid)
+{
+	
+}
+
 
 /**************************************************
 *
@@ -272,7 +298,7 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 *
 ***************************************************/
 
-int call_server(char *host, char *port, char *service, char *message)
+int call_server(char *host, char *port, char *mech, char *service, char *message)
 {
 	int res = 0;
 	int sock = 0;
@@ -297,12 +323,23 @@ int call_server(char *host, char *port, char *service, char *message)
 		return -1;
 	}
 	
-	res = establish_context(sock, service, &context, GSS_C_NULL_OID);
+	/* initialize the requested mechanism */
+	if(!mech)
+	{
+		mechanism = GSS_C_NULL_OID;
+	}
+	else
+	{
+		translate_mech_to_oid(mech, &mechanism);
+	}
+
+	res = establish_context(sock, service, &context, mechanism);
 	if(-1 == res)
 	{
 		printf("context establishment failed\n");
 		return -1;
 	}
+
 
 	
 	/* get context information */
@@ -493,7 +530,7 @@ int main(int argc, char **argv)
 	parse_args(argc, argv, &port, &delegate, &mech, &host, &service, &message);
 	printf("host: %s, port: %s, service: %s, mech: %s, message: %s\n", host, port, service, mech, message);
 	
-	if(-1 == call_server(host, port, service, message))
+	if(-1 == call_server(host, port, mech, service, message))
 	{
 		printf("call server failed !\n");
 
