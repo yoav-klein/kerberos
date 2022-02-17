@@ -132,7 +132,7 @@ int connect_to_server(char *host, char *port)
 		return -1;
 	}
 	
-	
+	status = -1;
 	for(runner = res_addresses; runner != NULL; runner = runner->ai_next)
 	{
 	    printf("Trying to connect to:\n");
@@ -145,12 +145,16 @@ int connect_to_server(char *host, char *port)
 	    else
 	    {
 	        printf("connected !\n");
+			status = 0;
 	        break;
 	    }
 	}
 	
 	freeaddrinfo(res_addresses);
-
+	if(-1 == status)
+	{
+		return -1;
+	}
 	return sock;
 	
 }
@@ -278,7 +282,19 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 
 int translate_mech_to_oid(const char *mech, gss_OID *res_oid)
 {
+	*res_oid = test_mech_str(mech);
+	if(!*res_oid)
+	{
+		printf("Requested mechanism in unknown\n");
+		return -1;
+	}
+	if(!test_mech_oid(*res_oid))
+	{
+		printf("Desired mechanism is not supported by the implemenation\n");
+		return -1;
+	}
 	
+	return 0;
 }
 
 
@@ -315,13 +331,8 @@ int call_server(char *host, char *port, char *mech, char *service, char *message
 	OM_uint32 maj_stat, min_stat;
 	OM_uint32 max_input_size = 0;
 	gss_OID mechanism, name_type;
+	gss_OID requested_mech_oid;
 
-	sock = connect_to_server(host, port);
-	if(-1 == sock)
-	{
-		printf("failed to connect to server\n");
-		return -1;
-	}
 	
 	/* initialize the requested mechanism */
 	if(!mech)
@@ -330,17 +341,27 @@ int call_server(char *host, char *port, char *mech, char *service, char *message
 	}
 	else
 	{
-		translate_mech_to_oid(mech, &mechanism);
+		
+		if(-1 == translate_mech_to_oid(mech, &requested_mech_oid))
+		{
+			close(sock);
+			return -1;
+		}
 	}
 
+	sock = connect_to_server(host, port);
+	if(-1 == sock)
+	{
+		printf("failed to connect to server\n");
+		return -1;
+	}
+	
 	res = establish_context(sock, service, &context, mechanism);
 	if(-1 == res)
 	{
 		printf("context establishment failed\n");
 		return -1;
 	}
-
-
 	
 	/* get context information */
 	maj_stat = gss_inquire_context(&min_stat, context, 

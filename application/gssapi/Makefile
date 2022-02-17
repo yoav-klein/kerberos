@@ -19,7 +19,11 @@ server: server.c utils.o
 client: client.c utils.o
 	@echo -e $(GREEN)"=== Building client ==="$(RESET)
 	@$(CC) $(CFLAGS)  -o $@ $^ $(LDFLAGS)
-	
+
+test: test.c utils.o
+	@echo -e $(GREEN)"=== Building test ==="$(RESET)
+	@$(CC) $(CFLAGS)  -o $@ $^ $(LDFLAGS)
+
 utils.o: utils.c
 	@$(CC) -c $(CFLAGS) -o $@ $^
 
