@@ -242,6 +242,7 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 		{
 			display_status("client gss_init_sec_context", maj_stat, min_stat);
 			gss_release_name(&min_stat, &target_name);
+			
 			return -1;
 		}
 		if(send_tok.length > 0)
@@ -382,6 +383,7 @@ int call_server(char *host, char *port, char *mech_str, char *service, char *mes
 	if(-1 == res)
 	{
 		printf("context establishment failed\n");
+		close(sock);
 		return -1;
 	}
 	
