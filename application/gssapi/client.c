@@ -6,8 +6,10 @@
 *	communicates with the server using GSS-API
 *
 *	Usage:
-*		$ client [-p <port>] [-d] [-m <mech>] host service [-f] message
+*		$ client [-p <port>] [-r] [-d] [-m <mech>] host service [-f] message
 *
+*		r - record-tokens
+*		d - delegate
 *		
 *	Flow:
 *		1. connecting to the server using TCP
@@ -47,7 +49,7 @@
 
 void usage()
 {
-	printf("client -p <port> [-d] [-m <mech>] host service [-f] message\n");
+	printf("client -p <port> [-r] [-d] [-m <mech>] host service [-f] message\n");
 }
 
 void parse_args(int argc, char **argv, char **port, 
@@ -55,13 +57,14 @@ void parse_args(int argc, char **argv, char **port,
 	char **mech, 
 	char **host, 
 	char **service, 
-	char **msg)
+	char **msg,
+	int *record_tokens)
 {
 	extern int opterr, optind;
 	extern char *optarg;
 	char ch = 0;
 		
-	while(-1 != (ch = getopt(argc, argv, "p:m:d")))
+	while(-1 != (ch = getopt(argc, argv, "p:m:dr")))
 	{
 		switch(ch)
 		{
@@ -74,6 +77,9 @@ void parse_args(int argc, char **argv, char **port,
 				break;
 			case 'm':
 				*mech = optarg;
+				break;
+			case 'r':
+				*record_tokens = 1;
 				break;
 			case '?':
 				if(optopt == 'p')
@@ -168,10 +174,11 @@ int connect_to_server(char *host, char *port)
 *		a context handle
 *
 *	Arguments:
-*		fd           -  file descriptor of a TCP socket of an opened connection with the server
-*		service_name - the name of the service
-*		mech_type    - mechanism type. should be GSS_C_NULL_OID
-*		ctx          - output parameter - returned context
+*		fd            -  file descriptor of a TCP socket of an opened connection with the server
+*		service_name  - the name of the service
+*		mech_type     - mechanism type. should be GSS_C_NULL_OID
+*		ctx           - output parameter - returned context
+*		record_tokens - whether or not to record the tokens
 *		
 *	returns -1 on error
 *
@@ -179,12 +186,13 @@ int connect_to_server(char *host, char *port)
 
 
 int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx, 
-				const gss_OID mech_type)
+				const gss_OID mech_type, int record_tokens)
 {
 	gss_buffer_desc gss_name, send_tok, recv_tok, *recv_tok_ptr;
 	gss_name_t target_name;
 	OM_uint32 maj_stat, min_stat, lifetime;
 	OM_uint32 ret_flags = 0;
+	int token_count = 0;
 	
 	(void)lifetime;
 	/* import the service name into target_name */
@@ -239,6 +247,13 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 		if(send_tok.length > 0)
 		{
 			printf("client: Sending token to server\n");
+			if(record_tokens)
+			{
+				char filename[30] = { 0 };
+				sprintf(filename, "context_token_send_%d", token_count++);
+				printf("client: recording token in %s\n", filename);
+				record_token(&send_tok, filename);
+			}
 			if(-1 == send_token(fd, &send_tok))
 			{
 				gss_release_name(&min_stat, &target_name);
@@ -257,6 +272,13 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 					return -1;
 				}
 				recv_tok_ptr = &recv_tok;
+				if(record_tokens)
+				{
+					char filename[30] = { 0 };
+					sprintf(filename, "context_token_recv_%d", token_count++);
+					printf("client: recording token in %s\n", filename);
+					record_token(&recv_tok, filename);
+				}
 			}
 		}
     }
@@ -280,14 +302,16 @@ int establish_context(int fd, char *service_name, gss_ctx_id_t *ctx,
 *
 **************************************************/
 
-int translate_mech_to_oid(const char *mech, gss_OID *res_oid)
+int translate_mech_to_oid(const char *mech_str, gss_OID *res_oid)
 {
-	*res_oid = test_mech_str(mech);
+	/* populates res_oid with the requested OID, if present in our 'database' */
+	*res_oid = test_mech_str(mech_str);
 	if(!*res_oid)
 	{
 		printf("Requested mechanism in unknown\n");
 		return -1;
 	}
+	/* check if the requested mechanism is supported by the implementation */
 	if(!test_mech_oid(*res_oid))
 	{
 		printf("Desired mechanism is not supported by the implemenation\n");
@@ -314,7 +338,7 @@ int translate_mech_to_oid(const char *mech, gss_OID *res_oid)
 *
 ***************************************************/
 
-int call_server(char *host, char *port, char *mech, char *service, char *message)
+int call_server(char *host, char *port, char *mech_str, char *service, char *message, int record_tokens)
 {
 	int res = 0;
 	int sock = 0;
@@ -335,16 +359,14 @@ int call_server(char *host, char *port, char *mech, char *service, char *message
 
 	
 	/* initialize the requested mechanism */
-	if(!mech)
+	if(!mech_str) /* mechanism not provided - use the default */
 	{
-		mechanism = GSS_C_NULL_OID;
+		requested_mech_oid = GSS_C_NULL_OID;
 	}
 	else
 	{
-		
-		if(-1 == translate_mech_to_oid(mech, &requested_mech_oid))
+		if(-1 == translate_mech_to_oid(mech_str, &requested_mech_oid))
 		{
-			close(sock);
 			return -1;
 		}
 	}
@@ -356,7 +378,7 @@ int call_server(char *host, char *port, char *mech, char *service, char *message
 		return -1;
 	}
 	
-	res = establish_context(sock, service, &context, mechanism);
+	res = establish_context(sock, service, &context, requested_mech_oid, record_tokens);
 	if(-1 == res)
 	{
 		printf("context establishment failed\n");
@@ -548,10 +570,12 @@ int main(int argc, char **argv)
 	char *service = NULL;
 	char *port = NULL;
 	char *message = NULL;
-	parse_args(argc, argv, &port, &delegate, &mech, &host, &service, &message);
+	int record_tokens = 0;
+
+	parse_args(argc, argv, &port, &delegate, &mech, &host, &service, &message, &record_tokens);
 	printf("host: %s, port: %s, service: %s, mech: %s, message: %s\n", host, port, service, mech, message);
 	
-	if(-1 == call_server(host, port, mech, service, message))
+	if(-1 == call_server(host, port, mech, service, message, record_tokens))
 	{
 		printf("call server failed !\n");
 

@@ -36,6 +36,7 @@ void display_status(char *message, OM_uint32 major, OM_uint32 minor);
 int send_token(int fd, gss_buffer_desc *token);
 int recv_token(int fd, gss_buffer_desc *token);
 
+int record_token(gss_buffer_desc *token, const char *filename);
 
 
 #endif /* __UTILS_H__ */

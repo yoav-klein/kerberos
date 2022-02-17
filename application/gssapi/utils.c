@@ -319,3 +319,32 @@ gss_OID test_mech_str(const char *requested_mech)
     }
     return NULL;
 }
+
+/******************************************
+*
+*   record_token
+*   
+*   Purpose:
+*       record the token in a file
+*
+*   Arguments:
+*       filename - name of the file.
+*       token    - the token to record
+*
+*   
+*   Returns:
+*       0 - success, -1 - failure
+*
+******************************************/
+
+int record_token(gss_buffer_desc *token, const char *filename)
+{
+    FILE *file;
+    size_t written_bytes = 0;
+    file = fopen(filename, "wb");
+    written_bytes = fwrite(token->value, 1, token->length, file);
+    
+    fclose(file);
+
+    return (written_bytes == token->length ? 0 : -1);
+}

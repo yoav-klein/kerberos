@@ -7,7 +7,8 @@
 *   using GSS-API
 *
 *   Usage:
-*       $ server [-p <port>] [-m <mech>] service
+*       $ server [-r] [-p <port>] [-m <mech>] service
+*           r - record tokens
 *
 *   Flow:
 *       1. acquires the service credentials
@@ -35,16 +36,16 @@
 
 void usage()
 {
-	printf("server -p <port> [-m <mech>] service\n");
+	printf("server -p <port> [-m <mech>] [-r] service\n");
 }
 
-void parse_args(int argc, char **argv, int *port, char **mech, char **service)
+void parse_args(int argc, char **argv, int *port, char **mech, char **service, int *record_tokens)
 {
 	extern int opterr, optind;
 	extern char *optarg;
 	char ch = 0;
 	*port = 0;
-	while(-1 != (ch = getopt(argc, argv, "p:m:")))
+	while(-1 != (ch = getopt(argc, argv, "p:m:r")))
 	{
 		switch(ch)
 		{
@@ -54,6 +55,9 @@ void parse_args(int argc, char **argv, int *port, char **mech, char **service)
 			case 'm':
 				*mech = optarg;
 				break;
+            case 'r':
+                *record_tokens = 1;
+                break;
 			case '?':
 				if(optopt == 'p')
 				{
@@ -232,12 +236,15 @@ int acquire_creds(char *service_name, gss_cred_id_t *out_creds)
 int establish_context(int fd, gss_cred_id_t server_creds, 
     gss_ctx_id_t *context,
     gss_buffer_desc *gssbuf_client_name,
-    OM_uint32 *ret_flags)
+    OM_uint32 *ret_flags,
+    int record_tokens)
 {
     gss_OID mech_oid;
     OM_uint32 maj_stat, min_stat;
     gss_buffer_desc recv_tok, send_tok;
     gss_name_t gssname_client_name;
+    int token_count = 0;
+
     do
     {   
         if(-1 == recv_token(fd, &recv_tok))
@@ -248,6 +255,13 @@ int establish_context(int fd, gss_cred_id_t server_creds,
 
         *context = GSS_C_NO_CONTEXT;
 
+        if(record_tokens)
+        {
+            char filename[30] = { 0 };
+            sprintf(filename, "context_token_recv_%d", token_count++);
+            printf("server: recording token in %s\n", filename);
+            record_token(&recv_tok, filename);
+        }
         maj_stat = gss_accept_sec_context(&min_stat,
             context,              /* first we supply GSS_C_NO_CONTEXT */
             server_creds,
@@ -278,6 +292,13 @@ int establish_context(int fd, gss_cred_id_t server_creds,
         
         if(send_tok.length > 0)
         {
+            if(record_tokens)
+            {
+                char filename[30] = { 0 };
+                sprintf(filename, "context_token_send_%d", token_count++);
+                printf("server: recording token in %s\n", filename);
+                record_token(&send_tok, filename);
+            }
             printf("server: establish_context: sending token to client\n");
             if(-1 == send_token(fd, &send_tok))
             {
@@ -385,7 +406,7 @@ int sign_message(int fd, gss_ctx_id_t context)
 
 }
 
-int talk_to_client(int port, char *service, char *mech)
+int talk_to_client(int port, char *service, char *mech, int record_tokens)
 {
     gss_cred_id_t server_creds;
     gss_ctx_id_t context;
@@ -414,7 +435,7 @@ int talk_to_client(int port, char *service, char *mech)
 
     cfd = receive_connection(sock);
     if(-1 == establish_context(cfd, server_creds, &context,
-        &gssbuff_client_name, &ret_flags))
+        &gssbuff_client_name, &ret_flags, record_tokens))
     {
         printf("server: couldn't establish context\n");
         return -1;
@@ -437,15 +458,15 @@ int talk_to_client(int port, char *service, char *mech)
 int main(int argc, char **argv)
 {
     int port = 0;
-    
+    int record_tokens = 0;
     char *service = NULL;
     char *mech = NULL;
 
-    parse_args(argc, argv, &port, &mech, &service);
+    parse_args(argc, argv, &port, &mech, &service, &record_tokens);
 
     printf("port: %d, service: %s\n", port, service);
 
-    if(-1 == talk_to_client(port, service, mech))
+    if(-1 == talk_to_client(port, service, mech, record_tokens))
     {
         return -1;
     }
