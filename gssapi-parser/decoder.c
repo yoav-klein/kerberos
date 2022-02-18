@@ -61,7 +61,6 @@ void parse_spnego(ANY_t *spnego_payload)
     asn_dec_rval_t status;
     NegotiationToken_t *neg_tok;
     
-    fd = open("test.tmp", O_WRONLY | O_CREAT);
     printf("---------------\n");
     print_bytes(spnego_payload->buf, spnego_payload->size);
     status = ber_decode(0, &asn_DEF_NegotiationToken, (void**)&neg_tok, spnego_payload->buf, spnego_payload->size);
@@ -72,8 +71,23 @@ void parse_spnego(ANY_t *spnego_payload)
     }
     printf("----------------\n");
     print_bytes((unsigned char*)neg_tok, sizeof(*neg_tok));
+    
+    if(neg_tok->present == NegotiationToken_PR_negTokenResp)
+    {
+        printf("RESPONSE\n");
+    }
+    else if(neg_tok->present == NegotiationToken_PR_negTokenInit)
+    {
+        printf("INIT\n");
+    }
+    else
+    {
+        printf("NONE\n");
+    }
+    /*fd = open("test.tmp", O_WRONLY | O_CREAT);
     write(fd, (void*)neg_tok, sizeof(*neg_tok));
-    close(fd);
+    close(fd);*/
+
     /*printf("%d\n", tmp);*/
     /*print_bytes((unsigned char*)&neg_tok->choice, 1);*/
     /*xer_fprint(stdout, &asn_DEF_NegotiationToken, neg_tok);*/
