@@ -64,7 +64,7 @@ void parse_spnego(ANY_t *spnego_payload)
         exit(1);
     }
     
-    xer_fprint(stdout, &asn_DEF_NegotiationToken, neg_tok);
+    asn_fprint(stdout, &asn_DEF_NegotiationToken, neg_tok);
     ASN_STRUCT_FREE(asn_DEF_NegotiationToken, neg_tok);
 }
 
@@ -108,10 +108,12 @@ int main(int argc, char **argv)
     if(status.code != RC_OK)
     {
         fprintf(stderr, "Broken InitialContextToken encoding at byte: %ld\n", status.consumed);
+        asn_fprint(stdout, &asn_DEF_InitialContextToken, token);
+        ASN_STRUCT_FREE(asn_DEF_InitialContextToken, token);
         exit(1);
     }
     
-    xer_fprint(stdout, &asn_DEF_InitialContextToken, token);
+    asn_fprint(stdout, &asn_DEF_InitialContextToken, token);
 
     if(check_if_spnego((OBJECT_IDENTIFIER_t*)&token->thisMech))
     {
