@@ -1,14 +1,11 @@
 
 #include <unistd.h> /* close */
-#include "InitialContextToken.h"
-/*#include "NegTokenInit.h"*/
-#include "NegotiationToken.h"
-#include "ANY.h"
-
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+
+#include "InitialContextToken.h"
+#include "NegotiationToken.h"
 
 
 void usage(char *prog)
@@ -57,40 +54,18 @@ int check_if_spnego(OBJECT_IDENTIFIER_t *oid)
 
 void parse_spnego(ANY_t *spnego_payload)
 {
-    int fd = 0;
     asn_dec_rval_t status;
-    NegotiationToken_t *neg_tok;
+    NegotiationToken_t *neg_tok = NULL;
     
-    printf("---------------\n");
-    print_bytes(spnego_payload->buf, spnego_payload->size);
     status = ber_decode(0, &asn_DEF_NegotiationToken, (void**)&neg_tok, spnego_payload->buf, spnego_payload->size);
     if(status.code != RC_OK)
     {
         fprintf(stderr, "Broken NegotiationToken encoding at byte: %ld\n", status.consumed);
         exit(1);
     }
-    printf("----------------\n");
-    print_bytes((unsigned char*)neg_tok, sizeof(*neg_tok));
     
-    if(neg_tok->present == NegotiationToken_PR_negTokenResp)
-    {
-        printf("RESPONSE\n");
-    }
-    else if(neg_tok->present == NegotiationToken_PR_negTokenInit)
-    {
-        printf("INIT\n");
-    }
-    else
-    {
-        printf("NONE\n");
-    }
-    /*fd = open("test.tmp", O_WRONLY | O_CREAT);
-    write(fd, (void*)neg_tok, sizeof(*neg_tok));
-    close(fd);*/
-
-    /*printf("%d\n", tmp);*/
-    /*print_bytes((unsigned char*)&neg_tok->choice, 1);*/
-    /*xer_fprint(stdout, &asn_DEF_NegotiationToken, neg_tok);*/
+    xer_fprint(stdout, &asn_DEF_NegotiationToken, neg_tok);
+    ASN_STRUCT_FREE(asn_DEF_NegotiationToken, neg_tok);
 }
 
 
@@ -138,13 +113,13 @@ int main(int argc, char **argv)
     
     xer_fprint(stdout, &asn_DEF_InitialContextToken, token);
 
-    
     if(check_if_spnego((OBJECT_IDENTIFIER_t*)&token->thisMech))
     {
         printf("------------- SPNEGO ----------------- !\n");
         parse_spnego(&token->innerContextToken);
     }
 
+    ASN_STRUCT_FREE(asn_DEF_InitialContextToken, token);
     return 0;
 
 }

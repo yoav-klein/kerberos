@@ -3,7 +3,7 @@ RESET=\e[0m
 
 CODEC_DIR=codec
 CC=gcc
-CFLAGS=-Wall -Wextra -pedantic-errors -ansi
+CFLAGS=-g -Wall -Wextra -pedantic-errors -ansi
 CFLAGS+=-I$(CODEC_DIR)
 
 LDFLAGS=-L$(CODEC_DIR)
@@ -18,6 +18,10 @@ $(CODEC_DIR)/libasncodec.a: $(ASN_FILES)
 all: decoder
 
 decoder: decoder.c $(CODEC_DIR)/libasncodec.a
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) $(LIBS)
+
+
+spnego-decoder: spnego-decoder.c $(CODEC_DIR)/libasncodec.a
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) $(LIBS)
 
 .PHONY: clean
