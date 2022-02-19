@@ -48,7 +48,7 @@ test_ssh() {
 all() {
     init_client
     test_krb5api
-    test_gssapi
+    test_gssapi spnego
     test_ssh
 }
 

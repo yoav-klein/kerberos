@@ -20,6 +20,19 @@ Whether or not these services are available depends on the underlying mechanism.
 
 Steps 5 + 6 are optional, and are used to make sure that the server got the message exactly as we sent it.
 
+### Usage
+```
+client [-p <port>] [-r] [-d] [-m <mech>] host service [-f] message
+```
+
+Arguments:
+- `-d` - delegate. not in use currently
+- `-m` - security mechanism to use.
+- `-r` - record context initialization tokens in files for later inspection.
+- `host` - the host domain name e.g. `krb5-server.myexample.com`
+- `service` - A Service Principal Name, e.g. `host@krb5-server.myexample.com`
+- `message` - to send to the server. 
+
 ## Server
 1. Opens a TCP socket and waits for connection
 2. Establishes a GSS-API context with the client
@@ -27,6 +40,18 @@ Steps 5 + 6 are optional, and are used to make sure that the server got the mess
 4. Creates a MIC for the message
 5. Sends the MIC to the client
 
+### Usage
+```
+$ server [-r] [-p <port>] [-m <mech>] service
+```
+
+Arguments:
+- `-r` - record tokens
+- `-m` - currently not in use
+- `service` - the name of the service, such as `host`.
+
+## Tokens recording
+We added the the ability to record the context initiation tokens so that we can then decode them using the `gssapi-decoder` application. The tokens are saved into files, one file per token.
 
 ## Some technical details
 

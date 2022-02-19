@@ -258,7 +258,7 @@ int establish_context(int fd, gss_cred_id_t server_creds,
         if(record_tokens)
         {
             char filename[30] = { 0 };
-            sprintf(filename, "context_token_recv_%d", token_count++);
+            sprintf(filename, "server_token_recv_%d", token_count++);
             printf("server: recording token in %s\n", filename);
             record_token(&recv_tok, filename);
         }
@@ -295,7 +295,7 @@ int establish_context(int fd, gss_cred_id_t server_creds,
             if(record_tokens)
             {
                 char filename[30] = { 0 };
-                sprintf(filename, "context_token_send_%d", token_count++);
+                sprintf(filename, "server_token_send_%d", token_count++);
                 printf("server: recording token in %s\n", filename);
                 record_token(&send_tok, filename);
             }
