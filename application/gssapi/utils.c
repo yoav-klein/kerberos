@@ -5,6 +5,10 @@
 #include <unistd.h> /* read */
 #include <stdlib.h> /* malloc */
 #include <gssapi.h> /* GSS_C_DELEG_FLAG */
+#include <string.h> /* strcmp */
+
+#include "utils.h"
+
 
 
 /*****************************
@@ -186,4 +190,161 @@ int recv_token(int fd, gss_buffer_desc *token)
         return -1;
     }
     return 0;
+}
+
+/*********************************
+*
+*   print_oid
+*
+*   Purpose:
+*       Print an OID
+*
+*   Arguments:
+*       oid  - the OID to print
+*
+*********************************/
+
+void print_oid(gss_OID oid)
+{
+    unsigned int i = 0;
+    char *curr_octet = (char*)oid->elements;
+
+    printf("length: %d\n", oid->length);
+    printf("content: ");
+    for(i = 0; i < oid->length; ++i)
+    {
+        printf("0x%x ", (unsigned char)*(curr_octet++));
+    }
+    printf("\n");
+}
+
+/************************************
+*
+*   print_mechs
+*     
+*   Purpose:
+*       print the number of supported mechanisms
+*       by the implementation, and print their OIDs
+*
+**************************************/
+
+void print_mechs()
+{
+    OM_uint32 maj_stat, min_stat;
+    gss_OID_set mech_set;
+    unsigned int i = 0;
+
+    maj_stat = gss_indicate_mechs(&min_stat, &mech_set);
+    if(maj_stat != GSS_S_COMPLETE)
+    {
+        display_status("gss_indicate_mechs", maj_stat, min_stat);
+        return;
+    }
+    printf("number of mechs: %lu\n", mech_set->count);
+    
+    for(i = 0; i < mech_set->count; ++i)
+    {
+        printf("mech number: %d\n", i);
+        print_oid(mech_set->elements + i);
+    }
+
+    gss_release_oid_set(&min_stat, &mech_set);
+}
+
+
+/**************************************************
+*
+*   test_mech_oid
+*
+*   Purpose:
+*       test if a specific mechanism is supported by the 
+*       implementation
+*
+*   Arguments:
+*       mech_oid  - the requested mechanism OID
+*
+*   Returns:
+*       1 for yes, 0 for no, -1 for error
+*
+**************************************************/
+
+int test_mech_oid(gss_OID mech_oid)
+{
+    OM_uint32 maj_stat, min_stat;
+    gss_OID_set mech_set;
+    int present = 0;
+    maj_stat = gss_indicate_mechs(&min_stat, &mech_set);
+    if(maj_stat != GSS_S_COMPLETE)
+    {
+        display_status("gss_indicate_mechs", maj_stat, min_stat);
+        return -1;
+    }
+    
+    maj_stat = gss_test_oid_set_member(&min_stat, mech_oid, mech_set, &present);
+    if(GSS_S_COMPLETE != maj_stat)
+    {
+        display_status("gss_test_oid_set_member", maj_stat, min_stat);
+        return -1;
+    }
+    gss_release_oid_set(&min_stat, &mech_set);
+
+    return present;
+}
+
+/***************************************
+*
+*   test_mech_str
+*
+*   Purpose:
+*       checks if a mechanism str given by the user
+*       has a corresponding OID in our "database"
+*
+*   Arguments:
+*       mech_str - a string describing a mechanism
+*
+*   Returns:
+*       If the mechanism string has been found, returns 
+*       the corresponding OID, else, returns NULL
+*****************************************/
+
+gss_OID test_mech_str(const char *requested_mech)
+{
+    unsigned int i = 0;
+    for(i = 0; i < sizeof(available_mechs) / sizeof(struct mech_oid); ++i)
+    {
+        if(!strcmp(available_mechs[i].name, requested_mech))
+        {
+            return available_mechs[i].oid;
+        }
+    }
+    return NULL;
+}
+
+/******************************************
+*
+*   record_token
+*   
+*   Purpose:
+*       record the token in a file
+*
+*   Arguments:
+*       filename - name of the file.
+*       token    - the token to record
+*
+*   
+*   Returns:
+*       0 - success, -1 - failure
+*
+******************************************/
+
+int record_token(gss_buffer_desc *token, const char *filename)
+{
+    FILE *file;
+    size_t written_bytes = 0;
+    file = fopen(filename, "wb");
+    written_bytes = fwrite(token->value, 1, token->length, file);
+    
+    fclose(file);
+
+    return (written_bytes == token->length ? 0 : -1);
 }

@@ -1,0 +1,54 @@
+
+GSSAPI DEFINITIONS ::= BEGIN
+
+MechType ::= OBJECT IDENTIFIER
+
+InitialContextToken ::= [APPLICATION 0] IMPLICIT SEQUENCE {
+        thisMech MechType,
+        innerContextToken ANY DEFINED BY thisMech
+}
+
+-- Up to here this is GSS-API
+-- Now the SPNEGO definitions
+
+MechTypeList ::= SEQUENCE OF MechType
+
+NegotiationToken ::= CHOICE {
+    negTokenInit    [0] NegTokenInit,
+    negTokenResp    [1] NegTokenResp
+}
+
+NegTokenInit ::= SEQUENCE {
+    mechTypes       [0] MechTypeList,
+    reqFlags        [1] ContextFlags  OPTIONAL,
+        -- inherited from RFC 2478 for backward compatibility,
+        -- RECOMMENDED to be left out
+    mechToken       [2] OCTET STRING  OPTIONAL,
+    mechListMIC     [3] OCTET STRING  OPTIONAL,
+    ...
+}
+
+NegTokenResp ::= SEQUENCE {
+    negState       [0] ENUMERATED {
+        accept-completed    (0),
+        accept-incomplete   (1),
+        reject              (2),
+        request-mic         (3)
+    }  OPTIONAL,
+    supportedMech   [1] MechType      OPTIONAL,
+    responseToken   [2] OCTET STRING  OPTIONAL,
+    mechListMIC     [3] OCTET STRING  OPTIONAL,
+    ...
+}
+
+ContextFlags ::= BIT STRING {
+    delegFlag       (0),
+    mutualFlag      (1),
+    replayFlag      (2),
+    sequenceFlag    (3),
+    anonFlag        (4),
+    confFlag        (5),
+    integFlag       (6)
+} (SIZE (32))
+
+END

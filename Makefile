@@ -55,7 +55,7 @@ build-all: build-docker build-applications
 
 .PHONY: test
 test:
-	$(SCRIPTS)/test.sh
+	$(SCRIPTS)/test.sh all
 
 clean:
 	@echo -e $(GREEN)"=== Cleaning.."$(RESET)

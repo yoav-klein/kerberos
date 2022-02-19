@@ -28,10 +28,13 @@ test_krb5api() {
 }
 
 test_gssapi() {
+    if [ -n "$1" ]; then
+        mech_opt="-m $1"
+    fi
     echo -e "${GREEN}=== Running GSS-API application for test ${RESET}"
     echo -e "${GREEN}Running server in server container${RESET}"
-    docker exec -d ${SERVICE_CONTAINER} /bin/bash -c "/server/gss-server -p ${PORT} ${SERVICE_NAME}"
-    docker exec ${CLIENT_CONTAINER} /bin/bash -c "/client/gss-client -p ${PORT} ${SERVICE_HOST} ${SERVICE_NAME}@${SERVICE_HOST} \"This is my message !\""
+    docker exec -d ${SERVICE_CONTAINER} /bin/bash -c "/server/gss-server -r -p ${PORT} ${SERVICE_NAME}"
+    docker exec ${CLIENT_CONTAINER} /bin/bash -c "/client/gss-client -r ${mech_opt} -p ${PORT} ${SERVICE_HOST} ${SERVICE_NAME}@${SERVICE_HOST} \"This is my message !\""
 }
 
 test_ssh() {
@@ -42,9 +45,15 @@ test_ssh() {
     docker exec ${CLIENT_CONTAINER} /bin/bash -c "ssh yoav@${SERVICE_HOST} hostname"
 }
 
-init_client
-test_krb5api
-test_gssapi
-test_ssh
+all() {
+    init_client
+    test_krb5api
+    test_gssapi spnego
+    test_ssh
+}
 
-echo -e "${GREEN}=== TESTS SUCCEED${RESET}"
+if [ "$1" == "all" ]; then
+    all
+    echo -e "${GREEN}=== TESTS SUCCEED${RESET}"
+fi
+
